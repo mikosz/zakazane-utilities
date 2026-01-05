@@ -5,6 +5,7 @@ public class ZakazaneUtilitiesTests : ModuleRules
 	public ZakazaneUtilitiesTests(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		bWarningsAsErrors = true;
 
 		PublicDependencyModuleNames.AddRange(
 			new[]

@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 
+#include "Misc/TVariant.h"
+
 namespace Zkz
 {
 

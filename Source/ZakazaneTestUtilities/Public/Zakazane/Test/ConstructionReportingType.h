@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
+
 class FAutomationTestBase;
 
 namespace Zkz::Test

@@ -4,15 +4,27 @@
 
 #include "CoreMinimal.h"
 
+#include "InPlace.h"
+#include "Templates/IsInvocable.h"
+
 #include <optional>
 #include <type_traits>
 #include <utility>
 #include <variant>
 
-#include "InPlace.h"
-
 namespace Zkz
 {
+
+namespace ResultPrivate
+{
+
+/// Helper type for Ok / Err functions
+struct FUnusedType
+{
+	FUnusedType() = delete;
+};
+
+}  // namespace ResultPrivate
 
 /// Type tag used to construct error TResults in-place
 struct FUnexpect
@@ -82,9 +94,12 @@ private:
 template <class ErrorType>
 TUnexpected(ErrorType) -> TUnexpected<ErrorType>;
 
-/// Unreal-style port of std::expected (with small differences)
+// #TODO #Result: GetValueOr etc
+
+/// Unreal-style port of std::expected (with small differences).
+/// @see Zkz::Ok and Zkz::Err - Rust style generating functions
 template <class InValueType, class InErrorType>
-class TResult
+class [[nodiscard]] TResult
 {
 public:
 	using ValueType = InValueType;
@@ -156,6 +171,24 @@ public:
 	{
 	}
 
+	/// Used by the free Ok function, not to be used in other cases.
+	template <class OtherValueType UE_REQUIRES(
+		!std::is_same_v<std::remove_cvref_t<OtherValueType>, ResultPrivate::FUnusedType>)>
+	// ReSharper disable once CppNonExplicitConvertingConstructor
+	constexpr TResult(TResult<OtherValueType, ResultPrivate::FUnusedType>&& InValueResult)
+		: TResult{MoveTemp(InValueResult).GetValue()}
+	{
+	}
+
+	/// Used by the free Err function, not to be used in other cases.
+	template <class OtherErrorType UE_REQUIRES(
+		!std::is_same_v<std::remove_cvref_t<OtherErrorType>, ResultPrivate::FUnusedType>)>
+	// ReSharper disable once CppNonExplicitConvertingConstructor
+	constexpr TResult(TResult<ResultPrivate::FUnusedType, OtherErrorType>&& InErrorResult)
+		: TResult{Unexpect, MoveTemp(InErrorResult).GetError()}
+	{
+	}
+
 	constexpr bool HasValue() const
 	{
 		return std::holds_alternative<ValueType>(Value);
@@ -168,26 +201,31 @@ public:
 
 	constexpr ValueType& GetValue() &
 	{
+		check(HasValue());
 		return std::get<ValueType>(Value);
 	}
 
 	constexpr const ValueType& GetValue() const&
 	{
+		check(HasValue());
 		return const_cast<TResult&>(*this).GetValue();
 	}
 
 	constexpr ValueType&& GetValue() &&
 	{
+		check(HasValue());
 		return MoveTemp(std::get<ValueType>(Value));
 	}
 
 	constexpr const ValueType&& GetValue() const&&
 	{
+		check(HasValue());
 		return std::move(std::get<ValueType>(Value));
 	}
 
 	constexpr ErrorType& GetError() &
 	{
+		check(HasError());
 		return std::get<TUnexpected<ErrorType>>(Value).GetError();
 	}
 
@@ -198,12 +236,28 @@ public:
 
 	constexpr ErrorType&& GetError() &&
 	{
-		return MoveTemp(std::get<TUnexpected<ErrorType>>(Value).GetError());
+		check(HasError());
+		return std::move(std::get<TUnexpected<ErrorType>>(Value).GetError());
 	}
 
 	constexpr const ErrorType&& GetError() const&&
 	{
+		check(HasError());
 		return std::move(std::get<TUnexpected<ErrorType>>(Value).GetError());
+	}
+
+	template <class OtherValueType UE_REQUIRES(
+		std::is_copy_constructible_v<ValueType>&& std::is_convertible_v<OtherValueType&&, ValueType>)>
+	constexpr ValueType GetValueOr(OtherValueType&& ValueIfNotPresent) const&
+	{
+		return HasValue() ? GetValue() : Forward<OtherValueType>(ValueIfNotPresent);
+	}
+
+	template <class OtherValueType UE_REQUIRES(
+		std::is_move_constructible_v<ValueType>&& std::is_convertible_v<OtherValueType&&, ValueType>)>
+	constexpr ValueType GetValueOr(OtherValueType&& ValueIfNotPresent) &&
+	{
+		return HasValue() ? std::move(*this).GetValue() : Forward<OtherValueType>(ValueIfNotPresent);
 	}
 
 	/// If the result contains a:
@@ -300,7 +354,7 @@ private:
 };
 
 template <class InErrorType>
-class TResult<void, InErrorType>
+class [[nodiscard]] TResult<void, InErrorType>
 {
 public:
 	using ValueType = void;
@@ -312,6 +366,10 @@ public:
 	constexpr TResult(TResult&&) = default;
 	constexpr TResult& operator=(const TResult&) = default;
 	constexpr TResult& operator=(TResult&&) = default;
+
+	constexpr explicit TResult(FInPlace) : TResult{}
+	{
+	}
 
 	/// In-place constructor for errors.
 	/// E.g.:
@@ -343,6 +401,24 @@ public:
 	{
 	}
 
+	/// Used by the free Ok function, not to be used in other cases.
+	/// Needs to be a template so that it isn't a candidate for a move-constructor implementation.
+	template <class UnusedErrorType UE_REQUIRES(
+		std::is_same_v<std::remove_cvref_t<UnusedErrorType>, ResultPrivate::FUnusedType>)>
+	// ReSharper disable once CppNonExplicitConvertingConstructor
+	constexpr TResult(TResult<void, UnusedErrorType>&& InValueResult) : TResult{}
+	{
+	}
+
+	/// Used by the free Err function, not to be used in other cases.
+	template <class OtherErrorType UE_REQUIRES(
+		!std::is_same_v<std::remove_cvref_t<OtherErrorType>, ResultPrivate::FUnusedType>)>
+	// ReSharper disable once CppNonExplicitConvertingConstructor
+	constexpr TResult(TResult<ResultPrivate::FUnusedType, OtherErrorType>&& InErrorResult)
+		: TResult{Unexpect, MoveTemp(InErrorResult).GetError()}
+	{
+	}
+
 	constexpr bool HasValue() const
 	{
 		return !Error.has_value();
@@ -355,6 +431,7 @@ public:
 
 	constexpr ErrorType& GetError() &
 	{
+		check(HasError());
 		return Error.value();
 	}
 
@@ -365,11 +442,13 @@ public:
 
 	constexpr ErrorType&& GetError() &&
 	{
+		check(HasError());
 		return MoveTemp(Error.value());
 	}
 
 	constexpr const ErrorType&& GetError() const&&
 	{
+		check(HasError());
 		return std::move(Error.value());
 	}
 
@@ -434,10 +513,123 @@ constexpr bool IsResult = false;
 template <class ValueType, class ErrorType>
 constexpr bool IsResult<TResult<ValueType, ErrorType>> = true;
 
+/// Shorthand for instantiating a TResult with a value. Returned result has error type FUnusedType which is a special
+/// type that automatically converts to any other error type. This means you can for example
+/// <pre>
+///     TResult<int, SomeErrorType> Foo()
+///     {
+///			return Ok(3);
+///     }
+/// </pre>
+///
+/// For any SomeErrorType type.
+template <class ValueType>
+constexpr TResult<ValueType, ResultPrivate::FUnusedType> Ok(ValueType&& InValue)
+{
+	return TResult<ValueType, ResultPrivate::FUnusedType>{Forward<ValueType>(InValue)};
+}
+
+constexpr TResult<void, ResultPrivate::FUnusedType> Ok()
+{
+	return TResult<void, ResultPrivate::FUnusedType>{};
+}
+
+/// Same as Ok, but creates the result object in place, e.g.
+/// <pre>
+///		TResult<SomeTypeConstructibleFromIntAndString, SomeErrorType> Foo()
+///		{
+///			return EmplaceOk<SomeTypeConstructibleFromIntAndString>(3, "text");
+///		}
+/// </pre>
+///
+/// For any SomeErrorType type. Note that providing the value type is obligatory.
+template <class ValueType, class... ArgTypes>
+constexpr TResult<ValueType, ResultPrivate::FUnusedType> EmplaceOk(ArgTypes&&... Args)
+{
+	return TResult<ValueType, ResultPrivate::FUnusedType>{InPlace, Forward<ArgTypes>(Args)...};
+}
+
+/// Same as Ok, but creates an error result.
+template <class ErrorType>
+constexpr TResult<ResultPrivate::FUnusedType, ErrorType> Err(ErrorType&& InError)
+{
+	return TResult<ResultPrivate::FUnusedType, ErrorType>{TUnexpected{Forward<ErrorType>(InError)}};
+}
+
+/// Same as EmplaceOk, but creates an error result.
+template <class ErrorType, class... ArgTypes>
+constexpr TResult<ResultPrivate::FUnusedType, ErrorType> EmplaceErr(ArgTypes&&... Args)
+{
+	return TResult<ResultPrivate::FUnusedType, ErrorType>{Unexpect, Forward<ArgTypes>(Args)...};
+}
+
+/// Converts nested results into a single result of the type equal to the inner result type. E.g.:
+/// <pre>
+///		TResult<TResult<int, FString>, FPromiseCanceled> Nested = Foo();
+///		TResult<int, FString> Simple = CollapseNestedResults(MoveTemp(Nested), [](FPromiseCanceled) { return FString{"Canceled"}; });
+///
+///		// if Foo returned FPromiseCanceled error, Simple.GetError() will yield "Canceled".
+/// </pre>
+///
+template <
+	class ValueType,
+	class InnerErrorType,
+	class OuterErrorType,
+	class FunctionType UE_REQUIRES(TIsInvocable<FunctionType, OuterErrorType>::Value&& std::is_constructible_v<
+								   InnerErrorType,
+								   decltype(std::invoke(DeclVal<FunctionType>(), DeclVal<OuterErrorType>()))>)>
+constexpr TResult<ValueType, InnerErrorType> CollapseNestedResults(
+	TResult<TResult<ValueType, InnerErrorType>, OuterErrorType>&& NestedResult, FunctionType&& ConversionFunction)
+{
+	return NestedResult.HasValue()
+			   ? MoveTemp(NestedResult).GetValue()
+			   : TResult<ValueType, InnerErrorType>{
+					 Unexpect,
+					 std::invoke(Forward<FunctionType>(ConversionFunction), MoveTemp(NestedResult).GetError())};
+}
+
+template <
+	class ValueType,
+	class InnerErrorType,
+	class OuterErrorType,
+	class FunctionType UE_REQUIRES(TIsInvocable<FunctionType, OuterErrorType>::Value&& std::is_constructible_v<
+								   InnerErrorType,
+								   decltype(std::invoke(DeclVal<FunctionType>(), DeclVal<OuterErrorType>()))>)>
+constexpr TResult<ValueType, InnerErrorType> CollapseNestedResults(
+	const TResult<TResult<ValueType, InnerErrorType>, OuterErrorType>& NestedResult, FunctionType&& ConversionFunction)
+{
+	return NestedResult.HasValue()
+			   ? NestedResult.GetValue()
+			   : TResult<ValueType, InnerErrorType>{
+					 Unexpect, std::invoke(Forward<FunctionType>(ConversionFunction), NestedResult.GetError())};
+}
+
+template <
+	class ValueType,
+	class InnerErrorType,
+	class OuterErrorType UE_REQUIRES(std::is_constructible_v<InnerErrorType, OuterErrorType>)>
+constexpr TResult<ValueType, InnerErrorType> CollapseNestedResults(
+	TResult<TResult<ValueType, InnerErrorType>, OuterErrorType>&& NestedResult)
+{
+	return NestedResult.HasValue() ? MoveTemp(NestedResult).GetValue()
+								   : TResult<ValueType, InnerErrorType>{Unexpect, MoveTemp(NestedResult).GetError()};
+}
+
+template <
+	class ValueType,
+	class InnerErrorType,
+	class OuterErrorType UE_REQUIRES(std::is_constructible_v<InnerErrorType, OuterErrorType>)>
+constexpr TResult<ValueType, InnerErrorType> CollapseNestedResults(
+	const TResult<TResult<ValueType, InnerErrorType>, OuterErrorType>& NestedResult)
+{
+	return NestedResult.HasValue() ? NestedResult.GetValue()
+								   : TResult<ValueType, InnerErrorType>{Unexpect, NestedResult.GetError()};
+}
+
 namespace ResultPrivate
 {
 
-template <class ResultType, class FunctionType UE_REQUIRES(!std::is_void_v<typename ResultType::ValueType>)>
+template <class ResultType, class FunctionType UE_REQUIRES(!std::is_void_v<decltype(*DeclVal<ResultType>())>)>
 constexpr auto AndThenImpl(ResultType&& Result, FunctionType&& Function)
 {
 	static_assert(
@@ -455,7 +647,9 @@ constexpr auto AndThenImpl(ResultType&& Result, FunctionType&& Function)
 							 : FunctionResultType{Unexpect, Forward<ResultType>(Result).GetError()};
 }
 
-template <class ResultType, class FunctionType UE_REQUIRES(std::is_void_v<typename ResultType::ValueType>)>
+template <
+	class ResultType,
+	class FunctionType UE_REQUIRES(std::is_void_v<typename std::decay_t<ResultType>::ValueType>)>
 constexpr auto AndThenImpl(ResultType&& Result, FunctionType&& Function)
 {
 	static_assert(TIsInvocable<FunctionType>::Value, "Expected Function to be invocable without params");
@@ -471,18 +665,20 @@ constexpr auto AndThenImpl(ResultType&& Result, FunctionType&& Function)
 							 : FunctionResultType{Unexpect, Forward<ResultType>(Result).GetError()};
 }
 
-template <class ResultType, class FunctionType UE_REQUIRES(!std::is_void_v<typename ResultType::ValueType>)>
+template <
+	class ResultType,
+	class FunctionType UE_REQUIRES(!std::is_void_v<typename std::decay_t<ResultType>::ValueType>)>
 constexpr auto OrElseImpl(ResultType&& Result, FunctionType&& Function)
 {
 	static_assert(
-		TIsInvocable<FunctionType, decltype(*DeclVal<ResultType>())>::Value,
-		"Expected Function to be invocable with result value");
+		TIsInvocable<FunctionType, decltype(DeclVal<ResultType>().GetError())>::Value,
+		"Expected Function to be invocable with error type");
 
-	using FunctionResultType = decltype(Invoke(DeclVal<FunctionType>(), *DeclVal<ResultType>()));
+	using FunctionResultType = decltype(Invoke(DeclVal<FunctionType>(), DeclVal<ResultType>().GetError()));
 
 	static_assert(IsResult<FunctionResultType>, "Expected Function to return a TResult");
 	static_assert(
-		TIsConstructible<FunctionResultType, FInPlace, decltype(Forward<ResultType>(Result).GetValue())>::Value,
+		TIsConstructible<FunctionResultType, FInPlace, decltype(*Forward<ResultType>(Result))>::Value,
 		"Expected Function result value type to be constructible from original result value type");
 
 	return Result.HasError() ? Invoke(Forward<FunctionType>(Function), Forward<ResultType>(Result).GetError())

@@ -47,4 +47,14 @@ static_assert(FSum{}(1, 2) == 3);
 static_assert(FSum{}(1, 2, 3) == 6);
 static_assert(FSum{}(1.0f, 2.0, 3) == 6);
 
+/// Constexpr version of FIdentityFunctor
+struct FIdentityFunctor
+{
+	template <typename T>
+	constexpr T&& operator()(T&& Val) const
+	{
+		return Forward<T>(Val);
+	}
+};
+
 }  // namespace Zkz

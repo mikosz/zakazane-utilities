@@ -64,4 +64,12 @@ auto VariantInvoke(VariantType&& Variant, FunctionType&& Function)
 	return Visit([&]<class T>(T&& V) { return Invoke(Function, Forward<T>(V)); }, Forward<VariantType>(Variant));
 }
 
+/// Constructs a variant object in-place and returns a reference to the object.
+template <class EmplaceType, class VariantType, class... ArgTypes UE_REQUIRES(IsVariant_V<std::decay_t<VariantType>>)>
+EmplaceType& VariantEmplace_GetRef(VariantType& Variant, ArgTypes&&... Args)
+{
+	Variant.template Emplace<EmplaceType>(Forward<ArgTypes>(Args)...);
+	return Variant.template Get<EmplaceType>();
+}
+
 }  // namespace Zkz

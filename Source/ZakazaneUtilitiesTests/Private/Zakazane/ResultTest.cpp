@@ -1,3 +1,4 @@
+#include "Zakazane/Monostate.h"
 #include "Zakazane/Result.h"
 #include "Zakazane/Test/ConstructionReportingType.h"
 #include "Zakazane/Test/Test.h"
@@ -114,6 +115,28 @@ ZKZ_ADD_TEST(VoidSpecializationConstruction)
 	static_assert(ImplicitlyConvertedError.GetError() == 3);
 
 	TestTrue("Compile-time functionality", true);
+}
+
+ZKZ_ADD_TEST(OkErrConstruction)
+{
+	constexpr TResult<int, char> OkConstructedValue = Ok(3.3);
+
+	static_assert(OkConstructedValue.HasValue());
+	static_assert(OkConstructedValue.GetValue() == 3);
+
+	constexpr TResult<int, char> ErrConstructedValue = Err('c');
+
+	static_assert(ErrConstructedValue.HasError());
+	static_assert(ErrConstructedValue.GetError() == 'c');
+
+	constexpr TResult<void, char> VoidOkConstructedValue = Ok();
+
+	static_assert(VoidOkConstructedValue.HasValue());
+
+	constexpr TResult<void, char> VoidErrConstructedValue = Err('c');
+
+	static_assert(VoidErrConstructedValue.HasError());
+	static_assert(VoidErrConstructedValue.GetError() == 'c');
 }
 
 ZKZ_ADD_TEST(MoveCopyValue)
@@ -585,31 +608,25 @@ ZKZ_ADD_TEST(AndThen)
 {
 	{
 		bool bCalled = false;
-		const TResult<int, int> AndThenResult = TResult<char, char>{char{3}}.AndThen(
+		const TResult<int, FMonostate> AndThenResult = TResult<int, FMonostate>{char{3}}.AndThen(
 			[this, &bCalled](const int Value)
 			{
 				bCalled = true;
 				TestEqual("AndThen Function gets value as argument", Value, 3);
-				return TResult<int, int>{Unexpect, 12};
+				return TResult<int, FMonostate>{12};
 			});
 
 		TestTrue("AndThen Function called for value", bCalled);
-		TestTrue("AndThen returns Function result when called for value - HasError", AndThenResult.HasError());
-		TestEqual("AndThen returns Function result when called for value - GetError", AndThenResult.GetError(), 12);
+		TestTrue("AndThen returns Function result when called for value - HasValue", AndThenResult.HasValue());
+		TestEqual("AndThen returns Function result when called for value - GetError", AndThenResult.GetValue(), 12);
 	}
 
 	{
-		bool bCalled = false;
-		const TResult<int, int> AndThenResult = TResult<char, char>{Unexpect, char{3}}.AndThen(
-			[this, &bCalled](const int Value)
-			{
-				bCalled = true;
-				return TResult<int, int>{Unexpect, -1};
-			});
+		constexpr TResult<FMonostate, int> AndThenResult =
+			TResult<FMonostate, char>{Unexpect, char{3}}.AndThen([](FMonostate) { return Err(-1); });
 
-		TestTrue("AndThen Function not called for value", !bCalled);
-		TestTrue("AndThen returns original error when called for error - HasError", AndThenResult.HasError());
-		TestEqual("AndThen returns original error when called for error - GetError", AndThenResult.GetError(), 3);
+		static_assert(AndThenResult.HasError());
+		static_assert(AndThenResult.GetError() == 3);
 	}
 }
 
@@ -649,31 +666,24 @@ ZKZ_ADD_TEST(OrElse)
 {
 	{
 		bool bCalled = false;
-		const TResult<int, int> OrElseResult = TResult<char, char>{char{3}}.OrElse(
+		const TResult<FMonostate, int> OrElseResult = TResult<FMonostate, char>{Unexpect, char{3}}.OrElse(
 			[this, &bCalled](const char Error)
 			{
 				bCalled = true;
-				return TResult<int, int>{Unexpect, -1};
+				return TResult<FMonostate, int>{Unexpect, 42};
 			});
 
-		TestTrue("OrElse Function not called for value", !bCalled);
-		TestTrue("OrElse returns original value when called for value - HasValue", OrElseResult.HasValue());
-		TestEqual("OrElse returns original value when called for value - GetValue", OrElseResult.GetValue(), 3);
+		TestTrue("OrElse Function called for error", bCalled);
+		TestTrue("OrElse returns Function result when called for error - HasError", OrElseResult.HasError());
+		TestEqual("OrElse returns Function result when called for error - GetError", OrElseResult.GetError(), 42);
 	}
 
 	{
-		bool bCalled = false;
-		const TResult<int, int> OrElseResult = TResult<char, char>{Unexpect, char{3}}.OrElse(
-			[this, &bCalled](const char Error)
-			{
-				bCalled = true;
-				TestEqual("OrElse Function gets error as argument", Error, 3);
-				return TResult<int, int>{InPlace, 12};
-			});
+		constexpr TResult<int, FMonostate> OrElseResult =
+			TResult<int, FMonostate>{char{3}}.OrElse([](FMonostate) { return Ok(-1); });
 
-		TestTrue("OrElse Function called for value", bCalled);
-		TestTrue("OrElse returns Function result when called for value - HasValue", OrElseResult.HasValue());
-		TestEqual("OrElse returns Function result when called for value - GetValue", OrElseResult.GetValue(), 12);
+		static_assert(OrElseResult.HasValue());
+		static_assert(OrElseResult.GetValue() == 3);
 	}
 }
 
@@ -736,6 +746,48 @@ ZKZ_ADD_TEST(OperatorBoolAndDereference)
 
 	constexpr TResult<int, int> Error{Unexpect, 7};
 	static_assert(!Error);
+}
+
+ZKZ_ADD_TEST(CollapseNestedResults)
+{
+	struct FOuterError
+	{
+		int OuterErrorValue;
+	};
+
+	struct FInnerError
+	{
+		int InnerErrorValue;
+
+		explicit constexpr FInnerError(const int InInnerErrorValue) : InnerErrorValue{InInnerErrorValue}
+		{
+		}
+	};
+
+	struct FInnerErrorImplicit
+	{
+		int DoubleOuterErrorValue;
+
+		// ReSharper disable once CppNonExplicitConvertingConstructor
+		constexpr FInnerErrorImplicit(const FOuterError Outer) : DoubleOuterErrorValue{Outer.OuterErrorValue * 2}
+		{
+		}
+	};
+
+	// Uses const TResult& version
+	constexpr TResult<TResult<int, FInnerError>, FOuterError> NestedNonConvertibleResult{Unexpect, 3};
+	constexpr TResult<int, FInnerError> CollapsedNonConvertibleResult =
+		CollapseNestedResults(NestedNonConvertibleResult, &FOuterError::OuterErrorValue);
+	static_assert(CollapsedNonConvertibleResult.HasError());
+	static_assert(CollapsedNonConvertibleResult.GetError().InnerErrorValue == 3);
+
+	// Uses TResult&& version
+	constexpr TResult<int, FInnerErrorImplicit> ConvertibleResult =
+		CollapseNestedResults(TResult<TResult<int, FInnerErrorImplicit>, FOuterError>{Unexpect, 12});
+	static_assert(ConvertibleResult.HasError());
+	static_assert(ConvertibleResult.GetError().DoubleOuterErrorValue == 24);
+
+	TestTrue("Compile-time tests", true);
 }
 
 ZKZ_END_AUTOMATION_TEST(FResultTest);

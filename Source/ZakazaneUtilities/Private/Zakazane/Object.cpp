@@ -1,7 +1,8 @@
 ﻿#include "Zakazane/Object.h"
 
-#include "GameFramework/Actor.h"
 #include "Algo/Find.h"
+#include "GameFramework/Actor.h"
+#include "Zakazane/ReturnIfMacros.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -18,6 +19,17 @@ FString GetObjectNameOrLabel(const UObject& Object)
 	}
 
 	return Object.GetName();
+}
+
+TOptional<FString> GetObjectNameOrLabel(const UObject* Object)
+{
+	ZKZ_RETURN_IF_INVALID(Object, NullOpt);
+	return GetObjectNameOrLabel(*Object);
+}
+
+FString GetObjectNameOrLabelOr(const UObject* Object, const FString& IfInvalid)
+{
+	return GetObjectNameOrLabel(Object).Get(IfInvalid);
 }
 
 #if WITH_EDITOR
@@ -38,8 +50,8 @@ UObject* TryGetEditorCounterpartObject(const UObject& Object)
 		AActor* const ComponentOwnerActor = ComponentObject->GetOwner();
 		if (IsValid(ComponentOwnerActor))
 		{
-			const AActor* const EditorCounterpartOwnerActor = EditorUtilities::GetEditorWorldCounterpartActor(
-				ComponentOwnerActor);
+			const AActor* const EditorCounterpartOwnerActor =
+				EditorUtilities::GetEditorWorldCounterpartActor(ComponentOwnerActor);
 			if (IsValid(EditorCounterpartOwnerActor))
 			{
 				TArray<UActorComponent*> ComponentArray;
@@ -47,9 +59,7 @@ UObject* TryGetEditorCounterpartObject(const UObject& Object)
 				UActorComponent** EditorCounterpartComponent = Algo::FindByPredicate(
 					ComponentArray,
 					[ComponentObject](const UActorComponent* const Other)
-					{
-						return ComponentObject->GetFName() == Other->GetFName();
-					});
+					{ return ComponentObject->GetFName() == Other->GetFName(); });
 
 				if (EditorCounterpartComponent != nullptr)
 				{
@@ -68,7 +78,7 @@ UObject* TryGetEditorCounterpartObject(const UObject& Object)
 	return nullptr;
 }
 
-} // namespace Zkz::Editor
+}  // namespace Editor
 #endif
 
 }  // namespace Zkz

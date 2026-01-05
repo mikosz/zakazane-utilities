@@ -24,20 +24,18 @@ public class ZakazaneUtilities : ModuleRules
 			new[]
 			{
 				"Slate",
-				"SlateCore",
+				"SlateCore"
 			}
 		);
 
 		if (Target.bBuildEditor)
-		{
 			PrivateDependencyModuleNames.AddRange(new[]
 			{
 				"UnrealEd",
 				"SubobjectDataInterface",
 				"EditorSubsystem",
-				"MessageLog",
+				"MessageLog"
 			});
-		}
 
 		AddUseEngineVersionDef(5, 5);
 	}
@@ -51,5 +49,9 @@ public class ZakazaneUtilities : ModuleRules
 		// Must remain public due to being used in header file
 		PublicDefinitions.Add(string.Format("ZAKAZANE_UTILITIES_USE_{0}_{1}={2}", MajorVersion, MinorVersion,
 			isGivenVersionOrOver ? 1 : 0));
+
+		// Uncomment this (e.g. conditionally for shipping builds) to skip optional sanity checks for
+		// ordered execution.
+		//PublicDefinitions.Add("NO_STAGED_EXECUTION_INSPECTION");
 	}
 }

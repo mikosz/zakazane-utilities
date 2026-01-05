@@ -16,30 +16,30 @@ ZKZ_ADD_TEST(ScopedPromiseSetsOnDeleteIfNotExecutedOrMovedFrom)
 	{
 		const TFuture F = []
 		{
-			TScopedPromise<bool> P{TLiteralFunction<false>{}};
+			TScopedPromise<bool> P;
 			TFuture F = P.GetFuture();
 			P.SetValue(true);
 			return F;
 		}();
 
-		TestEqual("SetValuePresentInFuture", F.Get(), true);
+		TestEqual("SetValuePresentInFuture", F.Get().GetValueOr(false), true);
 	}
 
 	{
 		const TFuture F = []
 		{
-			TScopedPromise<bool> P{TLiteralFunction<false>{}};
+			TScopedPromise<bool> P;
 			TFuture F = P.GetFuture();
 			return F;
 		}();
 
-		TestEqual("CancelledValuePresentInFuture", F.Get(), false);
+		TestTrue("CancelledValuePresentInFuture", F.Get().HasError());
 	}
 
 	{
 		const TFuture F = []
 		{
-			TScopedPromise<bool> MovedFrom{TLiteralFunction<false>{}};
+			TScopedPromise<bool> MovedFrom;
 			TFuture F = MovedFrom.GetFuture();
 
 			{
@@ -50,13 +50,13 @@ ZKZ_ADD_TEST(ScopedPromiseSetsOnDeleteIfNotExecutedOrMovedFrom)
 			return F;
 		}();
 
-		TestEqual("SetValuePresentInFutureMoved", F.Get(), true);
+		TestEqual("SetValuePresentInFutureMoved", F.Get().GetValueOr(false), true);
 	}
 
 	{
 		const TFuture F = []
 		{
-			TScopedPromise<bool> MovedFrom{TLiteralFunction<false>{}};
+			TScopedPromise<bool> MovedFrom;
 			TFuture F = MovedFrom.GetFuture();
 
 			{
@@ -66,17 +66,18 @@ ZKZ_ADD_TEST(ScopedPromiseSetsOnDeleteIfNotExecutedOrMovedFrom)
 			return F;
 		}();
 
-		TestEqual("CancelledValuePresentInFutureMoved", F.Get(), false);
+		TestTrue("CancelledValuePresentInFutureMoved", F.Get().HasError());
 	}
 
 	{
 		const TFuture F = []
 		{
-			TScopedPromise<int> MovedFrom{TLiteralFunction<0>{}};
+			TScopedPromise<int> MovedFrom;
 			TFuture F = MovedFrom.GetFuture();
 
 			{
-				TScopedPromise<int> MovedTo{TLiteralFunction<1>{}};
+				// ReSharper disable once CppJoinDeclarationAndAssignment
+				TScopedPromise<int> MovedTo;
 				MovedTo = MoveTemp(MovedFrom);
 				MovedTo.SetValue(2);
 			}
@@ -84,25 +85,26 @@ ZKZ_ADD_TEST(ScopedPromiseSetsOnDeleteIfNotExecutedOrMovedFrom)
 			return F;
 		}();
 
-		TestEqual("SetValuePresentInFutureMoveAssigned", F.Get(), 2);
+		TestEqual("SetValuePresentInFutureMoveAssigned", F.Get().GetValueOr(-1), 2);
 	}
 
 	{
 		const TFuture F = []
 		{
-			TScopedPromise<int> MovedFrom{TLiteralFunction<0>{}};
+			TScopedPromise<int> MovedFrom;
 			TFuture F = MovedFrom.GetFuture();
 
 			{
 				// ReSharper disable once CppEntityAssignedButNoRead
-				TScopedPromise<int> MovedTo{TLiteralFunction<1>{}};
+				// ReSharper disable once CppJoinDeclarationAndAssignment
+				TScopedPromise<int> MovedTo;
 				MovedTo = MoveTemp(MovedFrom);
 			}
 
 			return F;
 		}();
 
-		TestEqual("CancelledValuePresentInFutureMoveAssigned", F.Get(), 0);
+		TestTrue("CancelledValuePresentInFutureMoveAssigned", F.Get().HasError());
 	}
 }
 
@@ -150,10 +152,10 @@ ZKZ_ADD_TEST(AggregateFuturesCanUseScopedPromise)
 		// Scoped promise will return -1 if unfulfilled
 		for (int Idx = 0; Idx < 10; ++Idx)
 		{
-			Promises.Emplace(TLiteralFunction<-1>{});
+			Promises.Emplace();
 		}
 
-		TArray<TFuture<int>> Futures;
+		TArray<TCancelableFuture<int>> Futures;
 		for (TScopedPromise<int>& Promise : Promises)
 		{
 			Futures.Emplace(Promise.GetFuture());
@@ -165,11 +167,92 @@ ZKZ_ADD_TEST(AggregateFuturesCanUseScopedPromise)
 			Promises[Idx].SetValue(Idx);
 		}
 
-		return AggregateFutures(MoveTemp(Futures), 0, FSum{});
+		return AggregateFutures(
+			MoveTemp(Futures),
+			0,
+			[](const int Sum, const TResult<int, FPromiseCanceled>& Result) { return Sum + Result.GetValueOr(-1); });
 	}();
 
 	// Result should be 1 + 3 + ... + 9 - 5 (for the even numbers) = 20
 	TestEqual("AggregateFuturesAccumulatesResults", AggregatedFuture.Get(), 20);
+}
+
+ZKZ_ADD_TEST(NextChainsFutures)
+{
+	// int -> FString
+	{
+		TPromise<int> IntPromise;
+
+		bool bContinuationCalled = false;
+		Next(IntPromise.GetFuture(), [](int V) { return LexToString(V); })
+			.Next(
+				[this, &bContinuationCalled](const FString& S)
+				{
+					TestEqual("(int -> FString) Got expected argument", S, TEXT("42"));
+					bContinuationCalled = true;
+				});
+
+		IntPromise.SetValue(42);
+		TestTrue("(int -> FString) Continuation called", bContinuationCalled);
+	}
+
+	// void -> FString
+	{
+		TPromise<void> VoidPromise;
+
+		bool bContinuationCalled = false;
+		Next(VoidPromise.GetFuture(), []() { return TEXT("Good"); })
+			.Next(
+				[this, &bContinuationCalled](const FString& S)
+				{
+					TestEqual("(void -> FString) Got expected argument", S, TEXT("Good"));
+					bContinuationCalled = true;
+				});
+
+		VoidPromise.SetValue();
+		TestTrue("(void -> FString) Continuation called", bContinuationCalled);
+	}
+
+	// int -> void
+	{
+		TPromise<int> IntPromise;
+
+		bool bContinuationCalled = false;
+		Next(IntPromise.GetFuture(), [this](int V) { TestEqual("(int -> void) Got expected argument", V, 123); })
+			.Next([&bContinuationCalled] { bContinuationCalled = true; });
+
+		IntPromise.SetValue(123);
+		TestTrue("(int -> void) Continuation called", bContinuationCalled);
+	}
+
+	// void -> void
+	{
+		TPromise<void> IntPromise;
+
+		bool bContinuation1Called = false;
+		bool bContinuation2Called = false;
+
+		Next(IntPromise.GetFuture(), [this, &bContinuation1Called]() { bContinuation1Called = true; })
+			.Next([&bContinuation2Called] { bContinuation2Called = true; });
+
+		IntPromise.SetValue();
+		TestTrue("(void -> void) Continuation 1 called", bContinuation1Called);
+		TestTrue("(void -> void) Continuation 2 called", bContinuation2Called);
+	}
+}
+
+ZKZ_ADD_TEST(CollapseFutureCanceledToError)
+{
+	TFutureResult<FString, int> FutureResult;
+
+	{
+		TScopedPromise<TResult<FString, int>> StringIntPromise;
+		FutureResult = CollapseFutureCanceledToError(StringIntPromise.GetFuture(), 3);
+	}
+
+	ZKZ_RETURN_IF(!TestTrue("PromiseFulfilled", FutureResult.IsReady()));
+	ZKZ_RETURN_IF(!TestTrue("HasError", FutureResult.Get().HasError()));
+	TestEqual("ErrorHasCollapsedValue", FutureResult.Get().GetError(), 3);
 }
 
 ZKZ_END_AUTOMATION_TEST(FFutureTest);

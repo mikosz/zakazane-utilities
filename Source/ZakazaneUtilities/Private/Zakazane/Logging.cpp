@@ -1,10 +1,10 @@
 ﻿#include "Zakazane/Logging.h"
 
 #include "Engine/Engine.h"
-#include "Modules/ModuleManager.h"
-#include "Logging/MessageLog.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "Logging/MessageLog.h"
 #include "Misc/UObjectToken.h"
+#include "Modules/ModuleManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Zakazane/Object.h"
 #include "Zakazane/ReturnIfMacros.h"
@@ -37,7 +37,7 @@ FString GetReadableContextObjectName(const UObject& Object)
 }
 
 #endif
-}
+}  // namespace Logging::Private
 
 void UZkzLogSubsystem::LogUserError(
 	const FLogCategoryBase& LogCategory,
@@ -52,8 +52,8 @@ void UZkzLogSubsystem::LogUserError(
 	// suppressing because logging is done independently, so it's universal for editor and build
 	FMessageLog& MessageLogInstance = FMessageLog{LogCategoryName}.SuppressLoggingToOutputLog();
 
-	TSharedRef<FTokenizedMessage> TokenizedMessage = MessageLogInstance.AddMessage(
-		FTokenizedMessage::Create(Severity, FText::FromString(MessageStr)));
+	TSharedRef<FTokenizedMessage> TokenizedMessage =
+		MessageLogInstance.AddMessage(FTokenizedMessage::Create(Severity, FText::FromString(MessageStr)));
 
 	if (IsValid(ContextObject))
 	{
@@ -61,8 +61,7 @@ void UZkzLogSubsystem::LogUserError(
 		{
 			if (bTryPointToSourceObject)
 			{
-				const UObject* EditorCounterpartObject =
-					Zkz::Editor::TryGetEditorCounterpartObject(*ContextObject);
+				const UObject* EditorCounterpartObject = Zkz::Editor::TryGetEditorCounterpartObject(*ContextObject);
 				if (IsValid(EditorCounterpartObject))
 				{
 					return EditorCounterpartObject;
@@ -76,8 +75,8 @@ void UZkzLogSubsystem::LogUserError(
 		TokenizedMessage->AddToken(FUObjectToken::Create(ObjectToLink, FText::FromString(ObjectToLinkName)));
 	}
 
-	if (!MessageNotificationActive.IsValid() || MessageNotificationActive->GetCompletionState() ==
-	    SNotificationItem::CS_Success)
+	if (!MessageNotificationActive.IsValid()
+		|| MessageNotificationActive->GetCompletionState() == SNotificationItem::CS_Success)
 	{
 		// Add notification
 		FNotificationInfo Info(FText::FromString(TEXT("Error occured")));
@@ -87,45 +86,41 @@ void UZkzLogSubsystem::LogUserError(
 		Info.ExpireDuration = 0;
 		Info.FadeInDuration = 0.1f;
 		Info.FadeOutDuration = 0.1f;
-		Info.ShowCopyToClipboadHyperlink();
+		Info.bUseCopyToClipboard = true;
 
-		FNotificationButtonInfo OpenMessageLogButtonInfo =
-			FNotificationButtonInfo(
-				FText::FromString(TEXT("Open Message Log")),
-				FText::FromString(TEXT("")),
-				FSimpleDelegate::CreateLambda(
-					[LogCategoryName, this]
+		FNotificationButtonInfo OpenMessageLogButtonInfo = FNotificationButtonInfo(
+			FText::FromString(TEXT("Open Message Log")),
+			FText::FromString(TEXT("")),
+			FSimpleDelegate::CreateLambda(
+				[LogCategoryName, this]
+				{
+					FMessageLogModule& MessageLogModule =
+						FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
+					MessageLogModule.OpenMessageLog(LogCategoryName);
+
+					if (MessageNotificationActive.IsValid())
 					{
-						FMessageLogModule& MessageLogModule =
-							FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
-						MessageLogModule.OpenMessageLog(LogCategoryName);
+						MessageNotificationActive->ExpireAndFadeout();
+						MessageNotificationActive->SetCompletionState(SNotificationItem::CS_Success);
+						MessageNotificationActive.Reset();
+					}
+				}),
+			SNotificationItem::CS_None);
 
-						if (MessageNotificationActive.IsValid())
-						{
-							MessageNotificationActive->ExpireAndFadeout();
-							MessageNotificationActive->SetCompletionState(
-								SNotificationItem::CS_Success);
-							MessageNotificationActive.Reset();
-						}
-					}),
-				SNotificationItem::CS_None);
-
-		FNotificationButtonInfo CloseNotificationButtonInfo =
-			FNotificationButtonInfo(
-				FText::FromString(TEXT("Close")),
-				FText::FromString(TEXT("")),
-				FSimpleDelegate::CreateLambda(
-					[this]
+		FNotificationButtonInfo CloseNotificationButtonInfo = FNotificationButtonInfo(
+			FText::FromString(TEXT("Close")),
+			FText::FromString(TEXT("")),
+			FSimpleDelegate::CreateLambda(
+				[this]
+				{
+					if (MessageNotificationActive.IsValid())
 					{
-						if (MessageNotificationActive.IsValid())
-						{
-							MessageNotificationActive->ExpireAndFadeout();
-							MessageNotificationActive->SetCompletionState(
-								SNotificationItem::CS_Success);
-							MessageNotificationActive.Reset();
-						}
-					}),
-				SNotificationItem::CS_None);
+						MessageNotificationActive->ExpireAndFadeout();
+						MessageNotificationActive->SetCompletionState(SNotificationItem::CS_Success);
+						MessageNotificationActive.Reset();
+					}
+				}),
+			SNotificationItem::CS_None);
 
 		Info.ButtonDetails.Add(MoveTemp(OpenMessageLogButtonInfo));
 		Info.ButtonDetails.Add(MoveTemp(CloseNotificationButtonInfo));
@@ -146,10 +141,7 @@ void UZkzLogSubsystem::LogUserError(
 		}
 
 		MessageNotificationActive->SetText(
-			FText::FromString(
-				FString::Printf(
-					TEXT("Error occured (%d)"),
-					MessageNotificationsToDisplay.Num())));
+			FText::FromString(FString::Printf(TEXT("Error occured (%d)"), MessageNotificationsToDisplay.Num())));
 
 		MessageNotificationActive->SetSubText(FText::FromString(ConstructNotificationErrorString()));
 	}
@@ -258,7 +250,7 @@ void LogToScreenAndConsole(const FLogCategoryBase& Category, ELogVerbosity::Type
 		case ELogVerbosity::VeryVerbose:
 			UE_LOG_REF(Category, VeryVerbose, TEXT("%s"), *Message);
 			break;
-		default: ;
+		default:;
 			UE_LOG_REF(Category, Error, TEXT("[unexpected verbosity] %s"), *Message);
 			break;
 	}
@@ -289,4 +281,4 @@ ZAKAZANEUTILITIES_API void LogUserError(
 {
 }
 #endif
-} // namespace Zkz
+}  // namespace Zkz

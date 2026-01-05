@@ -5,31 +5,47 @@
 #include "CoreMinimal.h"
 
 #include "Async/Future.h"
+#include "Result.h"
 #include "ReturnIfMacros.h"
 
 namespace Zkz
 {
 
+template <class T, class E>
+using TFutureResult = TFuture<TResult<T, E>>;
+
+template <class T, class E>
+using TResultPromise = TPromise<TResult<T, E>>;
+
+/// Error meaning the promise was destroyed before being fulfilled. This will most typically happen if the world
+/// is being destroyed, or the object containing the promise gets garbage collected.
+struct FPromiseCanceled
+{
+};
+
+constexpr FPromiseCanceled PromiseCanceled;
+
+template <class T>
+using TCancelableFuture = TFutureResult<T, FPromiseCanceled>;
+
+template <class T>
+using TCancelableFutureResult = TResult<T, FPromiseCanceled>;
+
 // #TODO #Promise: Review usages of TPromise and potentially replace with TScopedPromise
-/// Wrapper for TPromise gracefully handling destruction prior to being fulfilled. In case this happens it sets the
-/// promise value to the result of the CancelledValueFunc function passed to the constructor.
-template <class T UE_REQUIRES(!std::is_void_v<T>)>
+/// Wrapper for TPromise gracefully handling destruction prior to being fulfilled. The internal promise is
+/// TResultPromise<T, FPromiseCancelled> and if the promise gets destroyed, the set value is
+/// an error result.
+template <class T>
 class TScopedPromise
 {
 public:
-	explicit TScopedPromise(TFunction<T()> InCancelledValueFunc) : CancelledValueFunc{MoveTemp(InCancelledValueFunc)}
+	TScopedPromise() = default;
+
+	explicit TScopedPromise(TUniqueFunction<void()>&& CompletionCallback) : Promise{MoveTemp(CompletionCallback)}
 	{
 	}
 
-	TScopedPromise(TUniqueFunction<void()>&& CompletionCallback, TFunction<T()> InCancelledValueFunc)
-		: Promise{MoveTemp(CompletionCallback)}, CancelledValueFunc{MoveTemp(InCancelledValueFunc)}
-	{
-	}
-
-	TScopedPromise(TScopedPromise&& Other)
-		: Promise{MoveTemp(Other.Promise)}
-		, CancelledValueFunc{MoveTemp(Other.CancelledValueFunc)}
-		, bFulfilled{MoveTemp(Other.bFulfilled)}
+	TScopedPromise(TScopedPromise&& Other) : Promise{MoveTemp(Other.Promise)}, bFulfilled{MoveTemp(Other.bFulfilled)}
 	{
 		Other.bFulfilled = true;
 	}
@@ -39,7 +55,6 @@ public:
 		ZKZ_RETURN_IF(this == &Other, *this);
 
 		Promise = MoveTemp(Other.Promise);
-		CancelledValueFunc = MoveTemp(Other.CancelledValueFunc);
 		bFulfilled = Other.bFulfilled;
 
 		Other.bFulfilled = true;
@@ -49,9 +64,15 @@ public:
 	~TScopedPromise()
 	{
 		// #TODO #Promise: Should have IsFulfilled in TPromise (push request)
+		Cancel();
+	}
+
+	void Cancel()
+	{
 		if (!bFulfilled)
 		{
-			SetValue(CancelledValueFunc());
+			bFulfilled = true;
+			Promise.EmplaceValue(Unexpect, PromiseCanceled);
 		}
 	}
 
@@ -59,28 +80,128 @@ public:
 	void EmplaceValue(ArgTypes&&... Args)
 	{
 		bFulfilled = true;
-		Promise.EmplaceValue(Forward<ArgTypes>(Args)...);
+		Promise.EmplaceValue(InPlace, Forward<ArgTypes>(Args)...);
 	}
 
-	template <class... ArgTypes>
-	void SetValue(ArgTypes&&... Args)
+	template <class ValueType UE_REQUIRES(!std::is_void_v<T>)>
+	void SetValue(ValueType&& Value)
 	{
 		bFulfilled = true;
-		Promise.SetValue(Forward<ArgTypes>(Args)...);
+		Promise.EmplaceValue(InPlace, Forward<ValueType>(Value));
 	}
 
-	TFuture<T> GetFuture()
+	TCancelableFuture<T> GetFuture()
 	{
 		return Promise.GetFuture();
 	}
 
 private:
-	TPromise<T> Promise;
-
-	TFunction<T()> CancelledValueFunc;
+	TResultPromise<T, FPromiseCanceled> Promise;
 
 	bool bFulfilled = false;
 };
+
+/// Helper function similar to Next, but only calls the continuation function if the future result does not hold a
+/// canceled promise error.
+template <class T, class FunctionType UE_REQUIRES(!std::is_void_v<T> && TIsInvocable<FunctionType, T>::Value)>
+void IfNotCanceled(TCancelableFuture<T> CancelableFuture, FunctionType F)
+{
+	CancelableFuture.Next(
+		[F = MoveTemp(F)](TResult<T, FPromiseCanceled> Result) mutable
+		{
+			ZKZ_RETURN_IF(!Result.HasValue());
+			F(MoveTemp(Result).GetValue());
+		});
+}
+
+template <class FunctionType UE_REQUIRES(TIsInvocable<FunctionType>::Value)>
+void IfNotCanceled(TCancelableFuture<void> CancelableFuture, FunctionType F)
+{
+	CancelableFuture.Next(
+		[F = MoveTemp(F)](const TResult<void, FPromiseCanceled> Result) mutable
+		{
+			ZKZ_RETURN_IF(!Result.HasValue());
+			F();
+		});
+}
+
+/// Like TFuture::Next, but returns another TFuture for chaining. The TFuture type depends on the value returned by the provided
+/// function. This has overhead, just use TFuture::Next if you don't need chaining.
+/// Example:
+/// <pre>
+///			TFuture<int> FutureInt = FunctionReturningFutureInt();
+///			Next(
+///				MoveTemp(FutureInt),
+///				[](int V)
+///				{
+///					// This is called first after FunctionReturningFutureInt completes
+///					return LexToString(V);
+///				})
+///				.Next(
+///					[](const FString& String)
+///					{
+///						// This is called after the first continuation completes
+///						DoSomething(String);
+///					});
+/// </pre>
+template <class T, class FunctionType UE_REQUIRES(TIsInvocable<FunctionType, T>::Value)>
+[[nodiscard]] auto Next(TFuture<T> Future, FunctionType Continuation)
+	-> TFuture<decltype(::Invoke(Continuation, DeclVal<T>()))>
+{
+	using FContinuationResult = decltype(::Invoke(Continuation, DeclVal<T>()));
+	TPromise<FContinuationResult> ChainPromise;
+	auto ChainFuture = ChainPromise.GetFuture();
+
+	Future.Next(
+		[ChainPromise = MoveTemp(ChainPromise), Continuation = MoveTemp(Continuation)](T Value) mutable
+		{
+			if constexpr (std::is_same_v<FContinuationResult, void>)
+			{
+				::Invoke(Continuation, Forward<T>(Value));
+				ChainPromise.EmplaceValue();
+			}
+			else
+			{
+				ChainPromise.EmplaceValue(::Invoke(Continuation, Forward<T>(Value)));
+			}
+		});
+
+	return ChainFuture;
+}
+
+template <class FunctionType UE_REQUIRES(TIsInvocable<FunctionType>::Value)>
+[[nodiscard]] auto Next(TFuture<void> Future, FunctionType Continuation) -> TFuture<decltype(::Invoke(Continuation))>
+{
+	using FContinuationResult = decltype(::Invoke(Continuation));
+	TPromise<FContinuationResult> ChainPromise;
+	auto ChainFuture = ChainPromise.GetFuture();
+
+	Future.Next(
+		[ChainPromise = MoveTemp(ChainPromise), Continuation = MoveTemp(Continuation)]() mutable
+		{
+			if constexpr (std::is_same_v<FContinuationResult, void>)
+			{
+				::Invoke(Continuation);
+				ChainPromise.EmplaceValue();
+			}
+			else
+			{
+				ChainPromise.EmplaceValue(::Invoke(Continuation));
+			}
+		});
+
+	return ChainFuture;
+}
+
+template <class T, class E>
+TFuture<TResult<T, E>> CollapseFutureCanceledToError(TCancelableFuture<TResult<T, E>> Future, E&& ErrorIfCanceled)
+{
+	return Next(
+		MoveTemp(Future),
+		[ErrorIfCanceled = MoveTemp(ErrorIfCanceled)](TCancelableFutureResult<TResult<T, E>> Result) mutable {
+			return Result.HasValue() ? MoveTemp(Result).GetValue() : TResult<T, E>{Unexpect, MoveTemp(ErrorIfCanceled)};
+		});
+}
 
 namespace AggregateFuturesPrivate
 {
@@ -118,7 +239,7 @@ auto DoAggregateFutures(
 				::Invoke(AggregateFunc, Forward<ResultType>(Initial), Forward<FutureResultType>(FutureResult)),
 				MoveTemp(AggregateFunc))
 				.Next([Promise = MoveTemp(Promise)]<class FinalResultType>(FinalResultType&& FinalResult) mutable
-					  { Promise.SetValue(Forward<FinalResultType>(FinalResult)); });
+					  { Promise.EmplaceValue(Forward<FinalResultType>(FinalResult)); });
 		});
 
 	return AggregatedFuture;
@@ -129,7 +250,10 @@ auto DoAggregateFutures(
 /// Creates a single future from multiple futures. The result value is built by calling the given aggregate func.
 /// The aggregate func is a binary function taking the accumulated result (or the Initial value) and a future
 /// result. The futures are aggregated in order passed to the Futures argument.
-template <class FutureType, class ResultType, class AggregateFuncType>
+template <
+	class FutureType,
+	class ResultType,
+	class AggregateFuncType UE_REQUIRES(TIsInvocable<AggregateFuncType, ResultType, FutureType>::Value)>
 auto AggregateFutures(TArray<TFuture<FutureType>> Futures, ResultType&& Initial, AggregateFuncType&& AggregateFunc)
 {
 	using namespace AggregateFuturesPrivate;

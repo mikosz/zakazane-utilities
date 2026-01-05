@@ -26,6 +26,14 @@ ZAKAZANEUTILITIES_API FString GetComponentNameNoSuffix(FName ComponentName);
 ZAKAZANEUTILITIES_API FString GetComponentNameNoSuffix(FString ComponentName);
 ZAKAZANEUTILITIES_API FString GetComponentNameNoSuffix(const UActorComponent& Component);
 
+/// Returns ActorNameOrLabel::ComponentName. If Component or its owner if invalid, returns NullOpt
+ZAKAZANEUTILITIES_API TOptional<FString> GetActorAndComponentNameOrLabel(const UActorComponent* Component);
+
+/// Returns ActorNameOrLabel::ComponentLabel. If Component is invalid, returns IfInvalid. If Component's owner is invalid,
+/// returns IfInvalid::ComponentName.
+ZAKAZANEUTILITIES_API FString
+GetActorAndComponentNameOrLabelOr(const UActorComponent* Component, const FString& IfInvalid = TEXT("[INVALID]"));
+
 #if WITH_EDITOR
 namespace Editor
 {

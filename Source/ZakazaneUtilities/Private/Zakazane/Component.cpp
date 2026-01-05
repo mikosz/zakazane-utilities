@@ -5,6 +5,7 @@
 #include "Engine/SCS_Node.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "Zakazane/Blueprint.h"
+#include "Zakazane/Object.h"
 
 #if WITH_EDITOR
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -86,6 +87,24 @@ FString GetComponentNameNoSuffix(FString ComponentName)
 FString GetComponentNameNoSuffix(const UActorComponent& Component)
 {
 	return GetComponentNameNoSuffix(Component.GetName());
+}
+
+TOptional<FString> GetActorAndComponentNameOrLabel(const UActorComponent* Component)
+{
+	ZKZ_RETURN_IF_INVALID(Component, NullOpt);
+
+	const AActor* const Owner = Component->GetOwner();
+	ZKZ_RETURN_IF_INVALID(Owner, NullOpt);
+
+	return FString::Format(TEXT("{0}::{1}"), {Owner->GetActorNameOrLabel(), Component->GetName()});
+}
+
+FString GetActorAndComponentNameOrLabelOr(const UActorComponent* Component, const FString& IfInvalid)
+{
+	ZKZ_RETURN_IF_INVALID(Component, IfInvalid);
+
+	return FString::Format(
+		TEXT("{0}::{1}"), {GetObjectNameOrLabelOr(Component->GetOwner(), IfInvalid), Component->GetName()});
 }
 
 FComponentHierarchy::FComponentHierarchy(const AActor& InActor)
@@ -303,7 +322,7 @@ int32 FComponentHierarchy::RemoveSubobjects(
 		const TWeakObjectPtr<UActorComponent> Parent = CompsByChild.FindAndRemoveChecked(Comp);
 		CompsByParent.Remove(Parent, const_cast<UActorComponent*>(Comp));
 
-		const TArray<TWeakObjectPtr<UActorComponent>> ReparentedChildren = [this, Comp, Parent]
+		const TArray<TWeakObjectPtr<UActorComponent>> ReparentedChildren = [this, Comp]
 		{
 			TArray<TWeakObjectPtr<UActorComponent>> Result;
 			for (auto It = CompsByParent.CreateKeyIterator(Comp); It; ++It)

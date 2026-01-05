@@ -202,6 +202,27 @@ static_assert(SnapIfNear(0, 0, 1) == 0);
 static_assert(SnapIfNear(1, 0, 1) == 0);
 static_assert(SnapIfNear(2, 0, 1) == 2);
 
+/// Returns A or B depending on whether InputValue is closer to A or B.
+/// @code
+/// Snap(3, 0, 10) == 0
+/// Snap(6, 0, 10) == 10
+/// Snap(-2, 0, 10) == 0
+/// Snap(12, 0, 10) == 10
+/// @endcode
+template <class T UE_REQUIRES(TIsArithmetic<T>::Value)>
+constexpr T Snap(T InputValue, T A, T B)
+{
+	const float DistanceA = FMath::Abs(A - InputValue);
+	const float DistanceB = FMath::Abs(B - InputValue);
+
+	return DistanceA < DistanceB ? A : B;
+}
+
+static_assert(Snap(3, 0, 10) == 0);
+static_assert(Snap(6, 0, 10) == 10);
+static_assert(Snap(-2, 0, 10) == 0);
+static_assert(Snap(12, 0, 10) == 10);
+
 /// Same as SnapIfNear for arithmetic types, but for vectors.
 inline FVector SnapIfNear(const FVector& InputPoint, const FVector& SnapPoint, const double Threshold)
 {

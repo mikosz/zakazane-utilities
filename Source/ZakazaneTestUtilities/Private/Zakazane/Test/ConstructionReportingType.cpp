@@ -1,5 +1,7 @@
 ﻿#include "Zakazane/Test/ConstructionReportingType.h"
 
+#include "Misc/AutomationTest.h"
+
 namespace Zkz::Test
 {
 
