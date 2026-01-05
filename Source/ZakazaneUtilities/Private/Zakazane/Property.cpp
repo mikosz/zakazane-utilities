@@ -4,11 +4,12 @@
 #include "Zakazane/ContinueIfMacros.h"
 #include "Zakazane/ReturnIfMacros.h"
 
-namespace Zkz::Game::Editor
+namespace Zkz
 {
 
-bool MakeChangeNotify(FPropertyAccessChangeNotify& ChangeNotify, const TArray<TTuple<UObject*, FName>>& ObjectChain)
+bool MakeChangeNotify(FPropertyAccessChangeNotify& ChangeNotify, const TArrayView<const TTuple<UObject*, FName>> ObjectChain)
 {
+#if WITH_EDITOR
 	ZKZ_RETURN_IF_ENSURE(ObjectChain.IsEmpty(), false);
 
 	ChangeNotify.ChangedObject = ObjectChain.Last().Get<UObject*>();
@@ -28,6 +29,7 @@ bool MakeChangeNotify(FPropertyAccessChangeNotify& ChangeNotify, const TArray<TT
 		ChangeNotify.ChangedPropertyChain.SetActivePropertyNode(Property);
 		ChangeNotify.ChangedPropertyChain.SetActiveMemberPropertyNode(Property);
 	}
+#endif
 
 	return true;
 }
@@ -37,6 +39,7 @@ void EmitPropertyChangeNotifications(
 	const bool bIdenticalValue,
 	const TFunction<void()>& ChangeFunction)
 {
+#if WITH_EDITOR
 	FPropertyAccessChangeNotify ChangeNotify;
 	const bool bMadeChangeNotify = MakeChangeNotify(ChangeNotify, ObjectChain);
 	ZKZ_RETURN_IF(!bMadeChangeNotify);
@@ -44,9 +47,31 @@ void EmitPropertyChangeNotifications(
 	PropertyAccessUtil::EmitPreChangeNotify(&ChangeNotify, bIdenticalValue);
 	if (!bIdenticalValue)
 	{
+#endif
+		
 		ChangeFunction();
+
+#if WITH_EDITOR
 	}
 	PropertyAccessUtil::EmitPostChangeNotify(&ChangeNotify, bIdenticalValue);
+#endif
 }
 
-}  // namespace Zkz::Game::Editor
+void EmitPropertyChangeNotifications(
+	const FPropertyAccessChangeNotify& ChangeNotify, bool bIdenticalValue, const TFunction<void()>& ChangeFunction)
+{
+#if WITH_EDITOR
+	PropertyAccessUtil::EmitPreChangeNotify(&ChangeNotify, bIdenticalValue);
+	if (!bIdenticalValue)
+	{
+#endif
+		
+		ChangeFunction();
+
+#if WITH_EDITOR
+	}
+	PropertyAccessUtil::EmitPostChangeNotify(&ChangeNotify, bIdenticalValue);
+#endif
+}
+
+}  // namespace Zkz

@@ -14,7 +14,11 @@ namespace Private
 template <class FunctionType, class HeadType, class... TailTypes>
 void ForEachVariantType(TTypeTag<TVariant<HeadType, TailTypes...>>, FunctionType&& Function)
 {
-	Function(TTypeTag<HeadType>{});
+	static_assert(
+		TIsInvocable<FunctionType, TTypeTag<HeadType>>::Value,
+		"Function not invocable for TTypeTag<T> for all variant types T of given variant");
+
+	::Invoke(Function, TTypeTag<HeadType>{});
 
 	if constexpr (sizeof...(TailTypes) > 0)
 	{
@@ -53,11 +57,18 @@ void ForEachVariantType(FunctionType&& Function)
 
 /// Executes Invoke(Function, UnderlyingVariantValue). Useful instead of Visit when calling a function from a common
 /// superclass of all variants. E.g. for
+/// 
 /// @code
 /// TVariant<const UStaticMeshComponent*, const UDynamicMeshComponent*>
 /// @endcode
+/// 
 /// both types derive from UPrimitiveComponent, so you could call
-/// @code VariantInvoke(V, &USceneComponent::GetComponentTransform) @endcode instead of the more complicated Visit.
+/// 
+/// @code
+/// VariantInvoke(V, &USceneComponent::GetComponentTransform)
+/// @endcode
+/// 
+/// instead of the more complicated Visit.
 template <class VariantType, class FunctionType UE_REQUIRES(IsVariant_V<std::decay_t<VariantType>>)>
 auto VariantInvoke(VariantType&& Variant, FunctionType&& Function)
 {

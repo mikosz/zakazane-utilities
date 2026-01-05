@@ -12,7 +12,7 @@
 #include "UObject/ObjectPtr.h"
 #include "UObject/PropertyAccessUtil.h"
 
-namespace Zkz::Game::Editor
+namespace Zkz
 {
 
 /// Utility function for initializing FPropertyAccessChangeNotify objects. The user can use it to call
@@ -21,11 +21,11 @@ namespace Zkz::Game::Editor
 ///
 /// @param ObjectChain a list of object / PropertyName pairs from outermost to innermost. Doesn't support structs at the moment.
 ZAKAZANEUTILITIES_API bool MakeChangeNotify(
-	FPropertyAccessChangeNotify& ChangeNotify, const TArray<TTuple<UObject*, FName>>& ObjectChain);
+	FPropertyAccessChangeNotify& ChangeNotify, TArrayView<const TTuple<UObject*, FName>> ObjectChain);
 
 /// Calls pre change notify -> ChangeFunction -> post change notify. When dealing with multiple objects / properties,
 /// use MakeChangeNotify and call all EmitPreChangeNotify / EmitPostChangeNotify together before and after you modify
-/// the properties. Otherwise calling a single post change notify function may reconstruct and invalidate other modified
+/// the properties. Otherwise, calling a single post change notify function may reconstruct and invalidate other modified
 /// objects.
 ///
 /// @param ObjectChain a list of object / PropertyName pairs from outermost to innermost. Doesn't support structs at the moment.
@@ -33,6 +33,16 @@ ZAKAZANEUTILITIES_API bool MakeChangeNotify(
 /// @param ChangeFunction function that performs the actual modification of the property value
 ZAKAZANEUTILITIES_API void EmitPropertyChangeNotifications(
 	const TArray<TTuple<UObject*, FName>>& ObjectChain, bool bIdenticalValue, const TFunction<void()>& ChangeFunction);
+
+/// Calls pre change notify -> ChangeFunction -> post change notify. When dealing with multiple objects / properties,
+/// call all EmitPreChangeNotify / EmitPostChangeNotify together before and after you modify the properties. Otherwise,
+/// calling a single post change notify function may reconstruct and invalidate other modified objects.
+///
+/// @param ChangeNotify a change notify object constructed manually or via MakeChangeNotify
+/// @param bIdenticalValue whether the value being set is equal to the previous value
+/// @param ChangeFunction function that performs the actual modification of the property value
+ZAKAZANEUTILITIES_API void EmitPropertyChangeNotifications(
+	const FPropertyAccessChangeNotify& ChangeNotify, bool bIdenticalValue, const TFunction<void()>& ChangeFunction);
 
 /// Modify the given object and propagate the changes to its instances if it's an archetype.
 /// Modify() will only be called on the ModifiedObject, but not the instances. This is because there's no need
@@ -99,4 +109,4 @@ void ModifyAndPropagateChange(
 	ModifiedObject.Modify();
 }
 
-}  // namespace Zkz::Game::Editor
+}  // namespace Zkz
