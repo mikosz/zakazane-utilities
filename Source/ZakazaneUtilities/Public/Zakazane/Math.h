@@ -166,7 +166,7 @@ constexpr bool IsNearlyEqual(const T A, const T B, const T ErrorTolerance = Smal
 
 /// Extension of FMath::IsNearlyEqual to integral numbers.
 template <class T UE_REQUIRES(TIsIntegral<T>::Value)>
-constexpr bool IsNearlyEqual(const T A, const T B, const T ErrorTolerance)
+constexpr bool IsNearlyEqual(const T A, const T B, const T ErrorTolerance = 0)
 {
 	return (A < B) ? (B - A <= ErrorTolerance) : (A - B <= ErrorTolerance);
 }
