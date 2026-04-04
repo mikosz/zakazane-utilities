@@ -24,7 +24,15 @@ GetObjectNameOrLabelOr(const UObject* Object, const FString& IfInvalid = TEXT("[
 namespace Editor
 {
 
+/// Tries to find the editor counterpart of a runtime object.
 ZAKAZANEUTILITIES_API UObject* TryGetEditorCounterpartObject(const UObject& Object);
+
+template <class ObjectType>
+	requires std::is_base_of_v<UObject, ObjectType>
+ObjectType* TryGetEditorCounterpartObject(const ObjectType& Object)
+{
+	return Cast<ObjectType>(TryGetEditorCounterpartObject(static_cast<const UObject&>(Object)));
+}
 
 }  // namespace Editor
 #endif

@@ -78,7 +78,7 @@ inline void VectorSetComponent(FVector& Vector, const int32 ComponentIndex, cons
 /// Makes a new vector out of another vector and sets its component at ComponentIndex to ComponentValue.
 /// E.g.
 /// MakeVectorSetComponent(<0, 1, 2>, 1, 3) returns vector <0, 3, 1>
-inline [[nodiscard]] FVector MakeVectorSetComponent(
+[[nodiscard]] inline FVector MakeVectorSetComponent(
 	const FVector& Vector, const int32 ComponentIndex, const FVector::FReal ComponentValue)
 {
 	FVector Result = Vector;
@@ -89,7 +89,7 @@ inline [[nodiscard]] FVector MakeVectorSetComponent(
 /// Similar to MakeVectorSetComponent(Vector, ComponentIndex, ComponentValue) but uses a zero vector.
 /// E.g.
 /// MakeVectorSetComponent(1, 3) returns vector <0, 3, 0>
-inline [[nodiscard]] FVector MakeVectorSetComponent(const int32 ComponentIndex, const FVector::FReal ComponentValue)
+[[nodiscard]] inline FVector MakeVectorSetComponent(const int32 ComponentIndex, const FVector::FReal ComponentValue)
 {
 	return MakeVectorSetComponent(FVector::ZeroVector, ComponentIndex, ComponentValue);
 }
@@ -130,13 +130,13 @@ inline float SignedAngleBetweenVectorsDeg(const FVector& Vec1, const FVector& Ve
 
 /// Template version of UE_SMALL_NUMBER / UE_DOUBLE_SMALL_NUMBER.
 template <class T UE_REQUIRES(TIsFloatingPoint<T>::Value)>
-constexpr T SmallNumber;
+inline constexpr T SmallNumber;
 
 template <>
-constexpr float SmallNumber<float> = UE_SMALL_NUMBER;
+inline constexpr float SmallNumber<float> = UE_SMALL_NUMBER;
 
 template <>
-constexpr float SmallNumber<double> = UE_DOUBLE_SMALL_NUMBER;
+inline constexpr float SmallNumber<double> = UE_DOUBLE_SMALL_NUMBER;
 
 /// Constexpr version of FMath::Abs
 template <class T UE_REQUIRES(TIsArithmetic<T>::Value)>

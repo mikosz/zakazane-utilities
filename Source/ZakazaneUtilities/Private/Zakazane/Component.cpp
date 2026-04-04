@@ -361,6 +361,11 @@ bool FComponentHierarchy::ComponentsMutable() const
 	return bComponentsMutable;
 }
 
+AActor* FComponentHierarchy::GetActor() const
+{
+	return Actor.Get();
+}
+
 void FComponentHierarchy::ConstructFromActor(AActor& InActor, const bool bAllowMutableComponents)
 {
 	Actor = &InActor;

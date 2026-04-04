@@ -30,4 +30,28 @@ static_assert(std::is_same_v<TCopyConstType<float, int32>, int32>);
 static_assert(std::is_same_v<TCopyConstType<const float&, int32>, const int32>);
 static_assert(std::is_same_v<TCopyConstType<float&, int32>, int32>);
 
+template <typename CandidateType>
+concept TActorComponentType = std::is_base_of_v<UActorComponent, CandidateType>;
+
+template <class T>
+struct TRemoveCVRef
+{
+	using Type = std::remove_cv_t<std::remove_reference_t<T>>;
+};
+
+template <class T>
+using TRemoveCVRef_t = TRemoveCVRef<T>::Type;
+
+template <class FunctionType, class... ArgumentTypes>
+concept CInvokable = requires(FunctionType&& Func, ArgumentTypes&&... Args) {
+	std::invoke(std::forward<FunctionType>(Func), std::forward<ArgumentTypes>(Args)...);
+};
+
+template <class FunctionType, class ResultType, class... ArgumentTypes>
+concept CInvokableR = requires(FunctionType&& Func, ArgumentTypes&&... Args) {
+	{
+		std::invoke(std::forward<FunctionType>(Func), std::forward<ArgumentTypes>(Args)...)
+	} -> std::convertible_to<ResultType>;
+};
+
 }  // namespace Zkz

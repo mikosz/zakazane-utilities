@@ -6,8 +6,10 @@
 #include "Misc/UObjectToken.h"
 #include "Modules/ModuleManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "Zakazane/ContinueIfMacros.h"
 #include "Zakazane/Object.h"
 #include "Zakazane/ReturnIfMacros.h"
+#include "Zakazane/String.h"
 
 #if WITH_EDITOR
 #include "MessageLogModule.h"
@@ -36,6 +38,40 @@ FString GetReadableContextObjectName(const UObject& Object)
 	return Object.GetName();
 }
 
+FString ClampNotificationText(const FString& InText)
+{
+	if (InText.IsEmpty())
+	{
+		return InText;
+	}
+
+	constexpr int32 MaxLines = 30;
+	constexpr int32 MaxLineChars = 40;
+	constexpr int32 BuilderBufferSize = 1200;
+
+	TArray<FString> Lines;
+	InText.ParseIntoArrayLines(Lines, false);
+
+	TStringBuilder<BuilderBufferSize> Builder;
+	const int32 LineItMax = FMath::Min(MaxLines, Lines.Num());
+	for (int32 LineIndex = 0; LineIndex < LineItMax; ++LineIndex)
+	{
+		if (LineIndex > 0)
+		{
+			Builder << TEXT("\n");
+		}
+
+		Builder << Zkz::String::Abbreviate(MoveTemp(Lines[LineIndex]), MaxLineChars);
+	}
+
+	if (Lines.Num() > MaxLines)
+	{
+		Builder << Zkz::String::Ellipsis<TCHAR>;
+	}
+
+	return Builder.ToString();
+}
+
 #endif
 }  // namespace Logging::Private
 
@@ -43,7 +79,7 @@ void UZkzLogSubsystem::LogUserError(
 	const FLogCategoryBase& LogCategory,
 	const EMessageSeverity::Type Severity,
 	const FString& MessageStr,
-	const UObject* ContextObject,
+	const TArrayView<const UObject*> ContextObjects,
 	const bool bTryPointToSourceObject)
 {
 #if WITH_EDITOR
@@ -52,27 +88,44 @@ void UZkzLogSubsystem::LogUserError(
 	// suppressing because logging is done independently, so it's universal for editor and build
 	FMessageLog& MessageLogInstance = FMessageLog{LogCategoryName}.SuppressLoggingToOutputLog();
 
-	TSharedRef<FTokenizedMessage> TokenizedMessage =
+	const TSharedRef<FTokenizedMessage> TokenizedMessage =
 		MessageLogInstance.AddMessage(FTokenizedMessage::Create(Severity, FText::FromString(MessageStr)));
 
-	if (IsValid(ContextObject))
+	if (!ContextObjects.IsEmpty())
 	{
-		const UObject* ObjectToLink = [&]
+		using FObjectsToLink = TArray<const UObject*, TInlineAllocator<4>>;
+
+		const FObjectsToLink ObjectsToLink = [&]
 		{
-			if (bTryPointToSourceObject)
+			FObjectsToLink Result;
+			Result.Reserve(ContextObjects.Num());
+
+			for (const UObject* const ContextObject : ContextObjects)
 			{
-				const UObject* EditorCounterpartObject = Zkz::Editor::TryGetEditorCounterpartObject(*ContextObject);
-				if (IsValid(EditorCounterpartObject))
+				ZKZ_CONTINUE_IF_INVALID(ContextObject);
+
+				if (bTryPointToSourceObject)
 				{
-					return EditorCounterpartObject;
+					const UObject* EditorCounterpartObject = Zkz::Editor::TryGetEditorCounterpartObject(*ContextObject);
+					if (IsValid(EditorCounterpartObject))
+					{
+						Result.Emplace(EditorCounterpartObject);
+					}
+					else
+					{
+						Result.Emplace(ContextObject);
+					}
 				}
 			}
 
-			return ContextObject;
+			return Result;
 		}();
 
-		const FString ObjectToLinkName = Logging::Private::GetReadableContextObjectName(*ObjectToLink);
-		TokenizedMessage->AddToken(FUObjectToken::Create(ObjectToLink, FText::FromString(ObjectToLinkName)));
+		for (const UObject* const ObjectToLink : ObjectsToLink)
+		{
+			const FString ObjectToLinkName = Logging::Private::GetReadableContextObjectName(*ObjectToLink);
+			TokenizedMessage->AddToken(FUObjectToken::Create(ObjectToLink, FText::FromString(ObjectToLinkName)));
+		}
 	}
 
 	if (!MessageNotificationActive.IsValid()
@@ -80,7 +133,7 @@ void UZkzLogSubsystem::LogUserError(
 	{
 		// Add notification
 		FNotificationInfo Info(FText::FromString(TEXT("Error occured")));
-		Info.SubText = FText::FromString(MessageStr);
+		Info.SubText = FText::FromString(Logging::Private::ClampNotificationText(MessageStr));
 		Info.bFireAndForget = false;
 		Info.bUseThrobber = false;
 		Info.ExpireDuration = 0;
@@ -143,7 +196,8 @@ void UZkzLogSubsystem::LogUserError(
 		MessageNotificationActive->SetText(
 			FText::FromString(FString::Printf(TEXT("Error occured (%d)"), MessageNotificationsToDisplay.Num())));
 
-		MessageNotificationActive->SetSubText(FText::FromString(ConstructNotificationErrorString()));
+		MessageNotificationActive->SetSubText(
+			FText::FromString(Logging::Private::ClampNotificationText(ConstructNotificationErrorString())));
 	}
 
 	MessageLogInstance.Flush();
@@ -263,12 +317,8 @@ void LogUserError(
 	const UObject* ContextObject,
 	const bool bTryPointToSourceObject)
 {
-	ZKZ_RETURN_IF_INVALID(GEngine);
-
-	UZkzLogSubsystem* const LogSubsystem = GEngine->GetEngineSubsystem<UZkzLogSubsystem>();
-	ZKZ_RETURN_IF_INVALID(LogSubsystem);
-
-	LogSubsystem->LogUserError(LogCategory, Severity, MessageStr, ContextObject, bTryPointToSourceObject);
+	LogUserError(
+		LogCategory, Severity, MessageStr, TArrayView<const UObject*>{&ContextObject, 1}, bTryPointToSourceObject);
 }
 
 #if NO_LOGGING
@@ -281,4 +331,31 @@ ZAKAZANEUTILITIES_API void LogUserError(
 {
 }
 #endif
+
+void LogUserError(
+	const FLogCategoryBase& LogCategory,
+	const EMessageSeverity::Type Severity,
+	const FString& MessageStr,
+	const TArrayView<const UObject*> ContextObjects,
+	const bool bTryPointToSourceObject)
+{
+	ZKZ_RETURN_IF_INVALID(GEngine);
+
+	UZkzLogSubsystem* const LogSubsystem = GEngine->GetEngineSubsystem<UZkzLogSubsystem>();
+	ZKZ_RETURN_IF_INVALID(LogSubsystem);
+
+	LogSubsystem->LogUserError(LogCategory, Severity, MessageStr, ContextObjects, bTryPointToSourceObject);
+}
+
+#if NO_LOGGING
+void LogUserError(
+	const FNoLoggingCategory& LogCategory,
+	const EMessageSeverity::Type Severity,
+	const FString& MessageStr,
+	TArrayView<const UObject*> ContextObjects,
+	const bool bTryPointToSourceObject)
+{
+}
+#endif
+
 }  // namespace Zkz

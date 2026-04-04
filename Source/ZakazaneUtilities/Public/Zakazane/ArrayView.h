@@ -24,7 +24,7 @@ namespace Zkz
 template <
 	class OtherRangeType,
 	class CVUnqualifiedOtherRangeType = std::remove_cv_t<std::remove_reference_t<OtherRangeType>>,
-	class OtherRangeElementType = typename CVUnqualifiedOtherRangeType::ElementType UE_REQUIRES(
+	class OtherRangeElementType = CVUnqualifiedOtherRangeType::ElementType UE_REQUIRES(
 		TIsContiguousContainer<CVUnqualifiedOtherRangeType>::Value
 		&& !TIsTArrayView_V<CVUnqualifiedOtherRangeType> && TIsPointer<OtherRangeElementType>::Value)>
 auto MakeConstPtrArrayView(OtherRangeType&& Container UE_LIFETIMEBOUND)
@@ -32,7 +32,7 @@ auto MakeConstPtrArrayView(OtherRangeType&& Container UE_LIFETIMEBOUND)
 	// OtherRangeElementType is SomeType*
 	// OtherRangeType is TArray<OtherRangeElementType>, so TArray<SomeType*>
 
-	using PointerValueType = typename TRemovePointer<OtherRangeElementType>::Type;
+	using PointerValueType = TRemovePointer<OtherRangeElementType>::Type;
 
 	// PointerValueType is therefore SomeType
 	// Container.GetData returns OtherRangeElementType* so SomeType**
@@ -42,6 +42,32 @@ auto MakeConstPtrArrayView(OtherRangeType&& Container UE_LIFETIMEBOUND)
 	const PointerValueType** ConstPtr = const_cast<const PointerValueType**>(Container.GetData());
 
 	return MakeArrayView(ConstPtr, Container.Num());
+}
+
+/// Creates a const pointer array view, making this work:
+/// @code
+/// int* IntPtr1;
+/// int* IntPtr2;
+/// TArrayView<const int*> View = MakeConstPtrArrayView({IntPtr1, IntPtr2});
+/// @endcode
+///
+/// @c MakeConstArrayView already exists, but doing this on a std::initializer_list<Type*> creates
+/// a view of Type* const rather than const Type*.
+template <class ElementType UE_REQUIRES(TIsPointer<ElementType>::Value)>
+auto MakeConstPtrArrayView(std::initializer_list<ElementType> Elements UE_LIFETIMEBOUND)
+{
+	// ElementType is SomeType*
+
+	using PointerValueType = TRemovePointer<ElementType>::Type;
+
+	// PointerValueType is SomeType
+	// GetData(Elements) returns ElementType* so SomeType**
+
+	// T** doesn't convert to const T**, so need to const_cast
+
+	const PointerValueType** ConstPtr = const_cast<const PointerValueType**>(GetData(Elements));
+
+	return MakeArrayView(ConstPtr, GetNum(Elements));
 }
 
 }  // namespace Zkz

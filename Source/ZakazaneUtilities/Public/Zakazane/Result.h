@@ -6,6 +6,7 @@
 
 #include "InPlace.h"
 #include "Templates/IsInvocable.h"
+#include "TypeTraits.h"
 
 #include <optional>
 #include <type_traits>
@@ -14,7 +15,6 @@
 
 namespace Zkz
 {
-
 namespace ResultPrivate
 {
 
@@ -38,11 +38,11 @@ template <class ErrorType UE_REQUIRES(!std::is_void_v<ErrorType>)>
 class TUnexpected
 {
 public:
-	template <
-		class ArgErrorType = ErrorType UE_REQUIRES(
-			!std::is_same_v<std::remove_cvref_t<ArgErrorType>, TUnexpected>
-			&& !std::is_same_v<std::remove_cvref_t<ArgErrorType>, FInPlace>
-			&& std::is_constructible_v<ErrorType, ArgErrorType>)>
+	template <class ArgErrorType = ErrorType>
+		requires(
+			!std::is_same_v<TRemoveCVRef_t<ArgErrorType>, TUnexpected>
+			&& !std::is_same_v<TRemoveCVRef_t<ArgErrorType>, FInPlace>
+			&& std::is_constructible_v<ErrorType, ArgErrorType>)
 	constexpr explicit TUnexpected(ArgErrorType&& InValue) : Value{Forward<ArgErrorType>(InValue)}
 	{
 	}
@@ -99,6 +99,7 @@ TUnexpected(ErrorType) -> TUnexpected<ErrorType>;
 /// Unreal-style port of std::expected (with small differences).
 /// @see Zkz::Ok and Zkz::Err - Rust style generating functions
 template <class InValueType, class InErrorType>
+	requires(!std::is_reference_v<InValueType> && !std::is_reference_v<InErrorType>)
 class [[nodiscard]] TResult
 {
 public:
@@ -172,8 +173,8 @@ public:
 	}
 
 	/// Used by the free Ok function, not to be used in other cases.
-	template <class OtherValueType UE_REQUIRES(
-		!std::is_same_v<std::remove_cvref_t<OtherValueType>, ResultPrivate::FUnusedType>)>
+	template <
+		class OtherValueType UE_REQUIRES(!std::is_same_v<TRemoveCVRef_t<OtherValueType>, ResultPrivate::FUnusedType>)>
 	// ReSharper disable once CppNonExplicitConvertingConstructor
 	constexpr TResult(TResult<OtherValueType, ResultPrivate::FUnusedType>&& InValueResult)
 		: TResult{MoveTemp(InValueResult).GetValue()}
@@ -181,8 +182,8 @@ public:
 	}
 
 	/// Used by the free Err function, not to be used in other cases.
-	template <class OtherErrorType UE_REQUIRES(
-		!std::is_same_v<std::remove_cvref_t<OtherErrorType>, ResultPrivate::FUnusedType>)>
+	template <
+		class OtherErrorType UE_REQUIRES(!std::is_same_v<TRemoveCVRef_t<OtherErrorType>, ResultPrivate::FUnusedType>)>
 	// ReSharper disable once CppNonExplicitConvertingConstructor
 	constexpr TResult(TResult<ResultPrivate::FUnusedType, OtherErrorType>&& InErrorResult)
 		: TResult{Unexpect, MoveTemp(InErrorResult).GetError()}
@@ -403,16 +404,16 @@ public:
 
 	/// Used by the free Ok function, not to be used in other cases.
 	/// Needs to be a template so that it isn't a candidate for a move-constructor implementation.
-	template <class UnusedErrorType UE_REQUIRES(
-		std::is_same_v<std::remove_cvref_t<UnusedErrorType>, ResultPrivate::FUnusedType>)>
+	template <
+		class UnusedErrorType UE_REQUIRES(std::is_same_v<TRemoveCVRef_t<UnusedErrorType>, ResultPrivate::FUnusedType>)>
 	// ReSharper disable once CppNonExplicitConvertingConstructor
 	constexpr TResult(TResult<void, UnusedErrorType>&& InValueResult) : TResult{}
 	{
 	}
 
 	/// Used by the free Err function, not to be used in other cases.
-	template <class OtherErrorType UE_REQUIRES(
-		!std::is_same_v<std::remove_cvref_t<OtherErrorType>, ResultPrivate::FUnusedType>)>
+	template <
+		class OtherErrorType UE_REQUIRES(!std::is_same_v<TRemoveCVRef_t<OtherErrorType>, ResultPrivate::FUnusedType>)>
 	// ReSharper disable once CppNonExplicitConvertingConstructor
 	constexpr TResult(TResult<ResultPrivate::FUnusedType, OtherErrorType>&& InErrorResult)
 		: TResult{Unexpect, MoveTemp(InErrorResult).GetError()}
@@ -524,9 +525,9 @@ constexpr bool IsResult<TResult<ValueType, ErrorType>> = true;
 ///
 /// For any SomeErrorType type.
 template <class ValueType>
-constexpr TResult<ValueType, ResultPrivate::FUnusedType> Ok(ValueType&& InValue)
+constexpr TResult<ValueType, ResultPrivate::FUnusedType> Ok(ValueType InValue)
 {
-	return TResult<ValueType, ResultPrivate::FUnusedType>{Forward<ValueType>(InValue)};
+	return TResult<ValueType, ResultPrivate::FUnusedType>{MoveTemp(InValue)};
 }
 
 constexpr TResult<void, ResultPrivate::FUnusedType> Ok()
@@ -551,9 +552,9 @@ constexpr TResult<ValueType, ResultPrivate::FUnusedType> EmplaceOk(ArgTypes&&...
 
 /// Same as Ok, but creates an error result.
 template <class ErrorType>
-constexpr TResult<ResultPrivate::FUnusedType, ErrorType> Err(ErrorType&& InError)
+constexpr TResult<ResultPrivate::FUnusedType, ErrorType> Err(ErrorType InError)
 {
-	return TResult<ResultPrivate::FUnusedType, ErrorType>{TUnexpected{Forward<ErrorType>(InError)}};
+	return TResult<ResultPrivate::FUnusedType, ErrorType>{TUnexpected{MoveTemp(InError)}};
 }
 
 /// Same as EmplaceOk, but creates an error result.
@@ -625,6 +626,18 @@ constexpr TResult<ValueType, InnerErrorType> CollapseNestedResults(
 	return NestedResult.HasValue() ? NestedResult.GetValue()
 								   : TResult<ValueType, InnerErrorType>{Unexpect, NestedResult.GetError()};
 }
+
+/// If provided Result contains an error, returns from the current function propagating that error.
+/// The outer function result may be a different result type, but it must be constructible using Err(internal error)
+#define ZKZ_PROPAGATE_IF_ERROR(Result)                                                                            \
+	do                                                                                                            \
+	{                                                                                                             \
+		static_assert(std::is_lvalue_reference_v<decltype((Result))>);                                            \
+		if (auto& Reference_ZKZ_RETURN_ERROR_IF_LOCAL = (Result); Reference_ZKZ_RETURN_ERROR_IF_LOCAL.HasError()) \
+		{                                                                                                         \
+			return Err(MoveTempIfPossible(Reference_ZKZ_RETURN_ERROR_IF_LOCAL).GetError());                       \
+		}                                                                                                         \
+	} while (false)
 
 namespace ResultPrivate
 {
@@ -708,6 +721,7 @@ constexpr auto OrElseImpl(ResultType&& Result, FunctionType&& Function)
 // -- AndThen (non void)
 
 template <class InValueType, class InErrorType>
+	requires(!std::is_reference_v<InValueType> && !std::is_reference_v<InErrorType>)
 template <class FunctionType>
 constexpr auto TResult<InValueType, InErrorType>::AndThen(FunctionType&& Function) &
 {
@@ -715,6 +729,7 @@ constexpr auto TResult<InValueType, InErrorType>::AndThen(FunctionType&& Functio
 }
 
 template <class InValueType, class InErrorType>
+	requires(!std::is_reference_v<InValueType> && !std::is_reference_v<InErrorType>)
 template <class FunctionType>
 constexpr auto TResult<InValueType, InErrorType>::AndThen(FunctionType&& Function) &&
 {
@@ -722,6 +737,7 @@ constexpr auto TResult<InValueType, InErrorType>::AndThen(FunctionType&& Functio
 }
 
 template <class InValueType, class InErrorType>
+	requires(!std::is_reference_v<InValueType> && !std::is_reference_v<InErrorType>)
 template <class FunctionType>
 constexpr auto TResult<InValueType, InErrorType>::AndThen(FunctionType&& Function) const&
 {
@@ -729,6 +745,7 @@ constexpr auto TResult<InValueType, InErrorType>::AndThen(FunctionType&& Functio
 }
 
 template <class InValueType, class InErrorType>
+	requires(!std::is_reference_v<InValueType> && !std::is_reference_v<InErrorType>)
 template <class FunctionType>
 constexpr auto TResult<InValueType, InErrorType>::AndThen(FunctionType&& Function) const&&
 {
@@ -768,6 +785,7 @@ constexpr auto TResult<void, InErrorType>::AndThen(FunctionType&& Function) cons
 // -- OrElse (non void)
 
 template <class InValueType, class InErrorType>
+	requires(!std::is_reference_v<InValueType> && !std::is_reference_v<InErrorType>)
 template <class FunctionType>
 constexpr auto TResult<InValueType, InErrorType>::OrElse(FunctionType&& Function) &
 {
@@ -775,6 +793,7 @@ constexpr auto TResult<InValueType, InErrorType>::OrElse(FunctionType&& Function
 }
 
 template <class InValueType, class InErrorType>
+	requires(!std::is_reference_v<InValueType> && !std::is_reference_v<InErrorType>)
 template <class FunctionType>
 constexpr auto TResult<InValueType, InErrorType>::OrElse(FunctionType&& Function) &&
 {
@@ -782,6 +801,7 @@ constexpr auto TResult<InValueType, InErrorType>::OrElse(FunctionType&& Function
 }
 
 template <class InValueType, class InErrorType>
+	requires(!std::is_reference_v<InValueType> && !std::is_reference_v<InErrorType>)
 template <class FunctionType>
 constexpr auto TResult<InValueType, InErrorType>::OrElse(FunctionType&& Function) const&
 {
@@ -789,6 +809,7 @@ constexpr auto TResult<InValueType, InErrorType>::OrElse(FunctionType&& Function
 }
 
 template <class InValueType, class InErrorType>
+	requires(!std::is_reference_v<InValueType> && !std::is_reference_v<InErrorType>)
 template <class FunctionType>
 constexpr auto TResult<InValueType, InErrorType>::OrElse(FunctionType&& Function) const&&
 {

@@ -177,6 +177,99 @@ ZKZ_ADD_TEST(AggregateFuturesCanUseScopedPromise)
 	TestEqual("AggregateFuturesAccumulatesResults", AggregatedFuture.Get(), 20);
 }
 
+ZKZ_ADD_TEST(AggregateFutureResultsAccumulatesResults)
+{
+	TArray<TScopedPromise<int>> Promises;
+	for (int Idx = 0; Idx < 10; ++Idx)
+	{
+		Promises.Emplace_GetRef().EmplaceValue(Idx);
+	}
+
+	TArray<TCancelableFuture<int>> Futures;
+	for (TScopedPromise<int>& Promise : Promises)
+	{
+		Futures.Emplace(Promise.GetFuture());
+	}
+
+	constexpr int InitialResult = 42;
+
+	const TCancelableFuture<int> AggregatedFuture = AggregateFutureResults(MoveTemp(Futures), InitialResult, FSum{});
+
+	TestEqual("AggregateFutureResultsAccumulatesResults", AggregatedFuture.Get().GetValue(), 42 + 45);
+}
+
+ZKZ_ADD_TEST(AggregateFutureReturnsFirstErrorOnAnyError)
+{
+	TArray<TPromise<TResult<int, int>>> Promises;
+	for (int Idx = 0; Idx < 10; ++Idx)
+	{
+		if (Idx == 3 || Idx == 7)
+		{
+			Promises.Emplace_GetRef().EmplaceValue(Err(Idx));
+		}
+		else
+		{
+			Promises.Emplace_GetRef().EmplaceValue(Ok(Idx));
+		}
+	}
+
+	TArray<TFuture<TResult<int, int>>> Futures;
+	for (auto& Promise : Promises)
+	{
+		Futures.Emplace(Promise.GetFuture());
+	}
+
+	constexpr int InitialResult = 42;
+
+	const TFuture<TResult<int, int>> AggregatedFuture =
+		AggregateFutureResults(MoveTemp(Futures), InitialResult, FSum{});
+	TestEqual("AggregateFutureResultsReturnsFirstError", AggregatedFuture.Get().GetError(), 3);
+}
+
+ZKZ_ADD_TEST(AggregateFutureResultsWithNoAccumulatorReturnsVoid)
+{
+	TArray<TScopedPromise<int>> Promises;
+	for (int Idx = 0; Idx < 10; ++Idx)
+	{
+		Promises.Emplace_GetRef().EmplaceValue(Idx);
+	}
+
+	TArray<TCancelableFuture<int>> Futures;
+	for (TScopedPromise<int>& Promise : Promises)
+	{
+		Futures.Emplace(Promise.GetFuture());
+	}
+
+	const TCancelableFuture<void> AggregatedFuture = AggregateFutureResults(MoveTemp(Futures));
+
+	TestTrue("AggregateFutureResultsWithNoAccumulatorReturnsVoid", AggregatedFuture.Get().HasValue());
+}
+
+ZKZ_ADD_TEST(AggregateFutureResultsWithNoAccumulatorReturnsFirstErrorOnAnyError)
+{
+	TArray<TPromise<TResult<int, int>>> Promises;
+	for (int Idx = 0; Idx < 10; ++Idx)
+	{
+		if (Idx == 3 || Idx == 7)
+		{
+			Promises.Emplace_GetRef().EmplaceValue(Err(Idx));
+		}
+		else
+		{
+			Promises.Emplace_GetRef().EmplaceValue(Ok(Idx));
+		}
+	}
+
+	TArray<TFutureResult<int, int>> Futures;
+	for (auto& Promise : Promises)
+	{
+		Futures.Emplace(Promise.GetFuture());
+	}
+
+	const TFuture<TResult<void, int>> AggregatedFuture = AggregateFutureResults(MoveTemp(Futures));
+	TestEqual("AggregateFutureResultsWithNoAccumulatorReturnsFirstError", AggregatedFuture.Get().GetError(), 3);
+}
+
 ZKZ_ADD_TEST(NextChainsFutures)
 {
 	// int -> FString

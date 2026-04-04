@@ -20,6 +20,23 @@ ZKZ_ADD_TEST(GetRightmostSegmentsTest)
 	TestEqual("4", GetRightmostSegments(TEXT("abc.def.ghi"), TCHAR{'.'}, 4), FStringView{TEXT("abc.def.ghi")});
 }
 
+ZKZ_ADD_TEST(AbbreviateTest)
+{
+	{
+		const FString S{"I dream'd a dream to-night!"};
+		TestEqual("FString unabbreviated", Abbreviate(S, S.Len(), TEXT("[...]")), S);
+		TestEqual("FString abbreviated", Abbreviate(S, 16, TEXT("[...]")), TEXT("I dream'd a[...]"));
+		TestEqual("FString ending only", Abbreviate(S.Left(3), 2, TEXT("[...]")), TEXT("[...]"));
+	}
+
+	{
+		const FAnsiString S{"I dream'd a dream to-night!"};
+		TestEqual("FAnsiString unabbreviated", Abbreviate(S, S.Len(), "[...]"), S);
+		TestEqual("FAnsiString abbreviated", Abbreviate(S, 16, "[...]"), TEXT("I dream'd a[...]"));
+		TestEqual("FAnsiString ending only", Abbreviate(S.Left(3), 2, "[...]"), "[...]");
+	}
+}
+
 ZKZ_END_AUTOMATION_TEST(FStringTest);
 
 }  // namespace Zkz::String::Test

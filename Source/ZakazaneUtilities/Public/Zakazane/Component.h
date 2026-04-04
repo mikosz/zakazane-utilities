@@ -9,6 +9,7 @@
 #include "Templates/SubclassOf.h"
 #include "Zakazane/ContinueIfMacros.h"
 #include "Zakazane/ReturnIfMacros.h"
+#include "Zakazane/TypeTraits.h"
 
 class USCS_Node;
 
@@ -94,10 +95,10 @@ public:
 	UActorComponent* FindParent(const UActorComponent& Child);
 
 	/// Calls Func for each component. Order is undetermined.
-	template <class FuncType, class... AdditionalArgTypes>
+	template <TActorComponentType CompType = UActorComponent, class FuncType, class... AdditionalArgTypes>
 	void ForEachComponent(FuncType&& Func, AdditionalArgTypes&&... AdditionalArgs) const;
 
-	template <class FuncType, class... AdditionalArgTypes>
+	template <TActorComponentType CompType = UActorComponent, class FuncType, class... AdditionalArgTypes>
 	void ForEachComponent(
 		EForEachComponentAttachedActorsRecursionType AttachedActorsRecursion,
 		FuncType&& Func,
@@ -180,6 +181,8 @@ public:
 	/// actors and components of blueprint generated classes (even inherited ones) are mutable, while default
 	/// subobjects implemented in c++ are not.
 	bool ComponentsMutable() const;
+
+	AActor* GetActor() const;
 
 private:
 	using FCompsByParent = TMultiMap<TWeakObjectPtr<UActorComponent>, TWeakObjectPtr<UActorComponent>>;
@@ -286,11 +289,11 @@ ZAKAZANEUTILITIES_API int32 RemoveSubobject(
 namespace Zkz
 {
 
-template <class FuncType, class... AdditionalArgTypes>
+template <TActorComponentType CompType, class FuncType, class... AdditionalArgTypes>
 void FComponentHierarchy::ForEachComponent(FuncType&& Func, AdditionalArgTypes&&... AdditionalArgs) const
 {
-	constexpr bool bIsConstInvocable = TIsInvocable<FuncType, const UActorComponent&, AdditionalArgTypes...>::Value;
-	constexpr bool bIsNonConstInvocable = TIsInvocable<FuncType, UActorComponent&, AdditionalArgTypes...>::Value;
+	constexpr bool bIsConstInvocable = TIsInvocable<FuncType, const CompType&, AdditionalArgTypes...>::Value;
+	constexpr bool bIsNonConstInvocable = TIsInvocable<FuncType, CompType&, AdditionalArgTypes...>::Value;
 	static_assert(
 		bIsConstInvocable || bIsNonConstInvocable,
 		"Invalid functor signature. Expected functor taking a [const] UActorComponent, AdditionalArgTypes...");
@@ -306,7 +309,15 @@ void FComponentHierarchy::ForEachComponent(FuncType&& Func, AdditionalArgTypes&&
 	{
 		for (const auto& [WeakParent, WeakComp] : CompsByParent)
 		{
-			UActorComponent* const Comp = WeakComp.Get();
+			CompType* Comp;
+			if constexpr (std::is_same_v<CompType, UActorComponent>)
+			{
+				Comp = WeakComp.Get();
+			}
+			else
+			{
+				Comp = Cast<CompType>(WeakComp.Get());
+			}
 			ZKZ_CONTINUE_IF_INVALID(Comp);
 
 			Func(*Comp, AdditionalArgs...);
@@ -314,23 +325,24 @@ void FComponentHierarchy::ForEachComponent(FuncType&& Func, AdditionalArgTypes&&
 	}
 	else
 	{
-		ActorPtr->ForEachComponent(
+		ActorPtr->ForEachComponent<CompType>(
 			false,
-			[&](UActorComponent* const Comp)
+			[&](CompType* const Comp)
 			{
 				ZKZ_RETURN_IF_INVALID(Comp);
+
 				Func(*Comp, AdditionalArgs...);
 			});
 	}
 }
 
-template <class FuncType, class... AdditionalArgTypes>
+template <TActorComponentType CompType, class FuncType, class... AdditionalArgTypes>
 void FComponentHierarchy::ForEachComponent(
 	EForEachComponentAttachedActorsRecursionType AttachedActorsRecursion,
 	FuncType&& Func,
 	AdditionalArgTypes&&... AdditionalArgs) const
 {
-	ForEachComponent(Func, AdditionalArgs...);
+	ForEachComponent<CompType>(Func, AdditionalArgs...);
 
 	if (AttachedActorsRecursion == EForEachComponentAttachedActorsRecursionType::Recursive)
 	{
@@ -342,7 +354,7 @@ void FComponentHierarchy::ForEachComponent(
 			{
 				ZKZ_RETURN_IF_INVALID(AttachedActor, true);
 				FComponentHierarchy{*AttachedActor, bComponentsMutable}
-					.ForEachComponent(AttachedActorsRecursion, Func, AdditionalArgs...);
+					.ForEachComponent<CompType>(AttachedActorsRecursion, Func, AdditionalArgs...);
 
 				return true;
 			});

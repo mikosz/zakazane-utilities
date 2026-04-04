@@ -23,6 +23,10 @@ FString GetSerializedString(const FProperty& Property, const void* Object)
 
 		return Text.ToString();
 	}
+	else if (const FStrProperty* const StrProperty = ExactCastField<const FStrProperty>(&Property))
+	{
+		return StrProperty->GetPropertyValue_InContainer(Object);
+	}
 	else
 	{
 		FString String;
@@ -197,6 +201,10 @@ EImportResult ImportFromCSV(
 				{
 					const FText Text = FText::FromStringView(CellText);
 					TextProperty->SetValue_InContainer(Object, Text);
+				}
+				else if (const FStrProperty* const StrProperty = ExactCastField<const FStrProperty>(Property))
+				{
+					StrProperty->SetValue_InContainer(Object, FString{CellText});
 				}
 				else
 				{

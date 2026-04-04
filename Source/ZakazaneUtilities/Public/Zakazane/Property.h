@@ -34,6 +34,11 @@ ZAKAZANEUTILITIES_API bool MakeChangeNotify(
 ZAKAZANEUTILITIES_API void EmitPropertyChangeNotifications(
 	const TArray<TTuple<UObject*, FName>>& ObjectChain, bool bIdenticalValue, const TFunction<void()>& ChangeFunction);
 
+ZAKAZANEUTILITIES_API FString
+AppendPropertyToPathName(FStringView PathName, FStringView PropertyName, TOptional<int32> Index = NullOpt);
+ZAKAZANEUTILITIES_API FString
+AppendPropertyToPathName(FStringView PathName, FName PropertyName, TOptional<int32> Index = NullOpt);
+
 /// Modify the given object and propagate the changes to its instances if it's an archetype.
 /// Modify() will only be called on the ModifiedObject, but not the instances. This is because there's no need
 /// to save the change. If the object gets re-instanced in the future, it will load the value from the archetype.

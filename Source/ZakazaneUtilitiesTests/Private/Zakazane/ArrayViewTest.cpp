@@ -12,10 +12,20 @@ ZKZ_BEGIN_AUTOMATION_TEST(
 
 ZKZ_ADD_TEST(MakeConstPtrArrayViewConstifiesPointer)
 {
-	TArray<int*> ArrayOfPointers;
-	[[maybe_unused]] decltype(auto) Result = MakeConstPtrArrayView(ArrayOfPointers);
+	{
+		TArray<int*> ArrayOfPointers;
+		[[maybe_unused]] decltype(auto) Result = MakeConstPtrArrayView(ArrayOfPointers);
 
-	static_assert(std::is_same_v<decltype(Result), TArrayView<const int*>>);
+		static_assert(std::is_same_v<decltype(Result), TArrayView<const int*>>);
+	}
+
+	{
+		int* IntPtr1 = nullptr;
+		int* IntPtr2 = nullptr;
+		[[maybe_unused]] decltype(auto) Result = MakeConstPtrArrayView({IntPtr1, IntPtr2});
+
+		static_assert(std::is_same_v<decltype(Result), TArrayView<const int*>>);
+	}
 }
 
 ZKZ_END_AUTOMATION_TEST(FArrayViewTest);

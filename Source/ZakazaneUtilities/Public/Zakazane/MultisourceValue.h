@@ -45,7 +45,7 @@ public:
 private:
 	ValueType DefaultValue;
 
-	friend class ResolverType;	// need to befriend resolver so that it may static_cast to TMultisourceValue
+	friend ResolverType;  // need to befriend resolver so that it may static_cast to TMultisourceValue
 };
 
 // -- Resolvers
@@ -83,8 +83,7 @@ private:
 	TSet<SourceType> Sources;
 };
 
-
-/// Value sources are added with a value. The minimum value from the sources or the default value is returned. 
+/// Value sources are added with a value. The minimum value from the sources or the default value is returned.
 /// @tparam InValueType - automatically filled in by TMultisourceValue: this is the value type to be resolved
 /// @tparam MultisourceValueType - child TMultisourceValue (CRTP)
 template <class InValueType, class MultisourceValueType>
@@ -93,7 +92,7 @@ class TMinimumResolver
 public:
 	using ValueType = InValueType;
 	using SourceType = const void*;
-	
+
 	void PushValue(SourceType Source, ValueType Value)
 	{
 		Sources.Emplace(Source, Value);
@@ -101,24 +100,59 @@ public:
 
 	void PopValue(SourceType Source)
 	{
-		Sources.RemoveAllSwap([Source](const TPair<SourceType,ValueType>& Entry) { return Entry.Key == Source; });
+		Sources.RemoveAllSwap([Source](const TPair<SourceType, ValueType>& Entry) { return Entry.Key == Source; });
 	}
 
 	ValueType GetValue() const
 	{
-		ValueType DefaultValue =  static_cast<const MultisourceValueType&>(*this).GetDefaultValue();
-		
-		const TPair<SourceType,ValueType>* SourceEntryPtr = Algo::MinElementBy(Sources,&TPair<SourceType,ValueType>::Value);
+		ValueType DefaultValue = static_cast<const MultisourceValueType&>(*this).GetDefaultValue();
+
+		const TPair<SourceType, ValueType>* SourceEntryPtr =
+			Algo::MinElementBy(Sources, &TPair<SourceType, ValueType>::Value);
 		if (SourceEntryPtr == nullptr)
 		{
 			return DefaultValue;
 		}
-		
+
 		return FMath::Min(DefaultValue, SourceEntryPtr->Value);
 	}
 
 private:
-	TArray<TPair<SourceType,ValueType>> Sources;
+	TArray<TPair<SourceType, ValueType>> Sources;
+};
+
+/// Value sources are added with a value. The last value from the sources or the default value is returned.
+/// @tparam InValueType - automatically filled in by TMultisourceValue: this is the value type to be resolved
+/// @tparam MultisourceValueType - child TMultisourceValue (CRTP)
+template <class InValueType, class MultisourceValueType>
+class TLastResolver
+{
+public:
+	using ValueType = InValueType;
+	using SourceType = const void*;
+
+	void PushValue(SourceType Source, ValueType Value)
+	{
+		Sources.Emplace(Source, Value);
+	}
+
+	void PopValue(SourceType Source)
+	{
+		Sources.RemoveAllSwap([Source](const TPair<SourceType, ValueType>& Entry) { return Entry.Key == Source; });
+	}
+
+	ValueType GetValue() const
+	{
+		if (Sources.IsEmpty())
+		{
+			return static_cast<const MultisourceValueType&>(*this).GetDefaultValue();
+		}
+
+		return Sources.Last().Value;
+	}
+
+private:
+	TArray<TPair<SourceType, ValueType>> Sources;
 };
 
 /// Value sources are added with a priority value. Value from the source with the highest priority is returned. If
@@ -231,5 +265,6 @@ using TPriorityBasedMultisourceValue = TMultisourceValue<ValueType, MultisourceV
 
 using FIfAnyMultisourceValue = TMultisourceValue<bool, MultisourceValue::TIfAnyResolver>;
 using FMinMultisourceValue = TMultisourceValue<float, MultisourceValue::TMinimumResolver>;
+using FLastMultisourceValue = TMultisourceValue<float, MultisourceValue::TLastResolver>;
 
 }  // namespace Zkz

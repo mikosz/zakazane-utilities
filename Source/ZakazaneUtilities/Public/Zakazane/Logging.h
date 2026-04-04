@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 
-#include "Subsystems/EngineSubsystem.h"
 #include "Logging/TokenizedMessage.h"
+#include "Subsystems/EngineSubsystem.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 #include "Logging.generated.h"
@@ -22,7 +22,7 @@ public:
 		const FLogCategoryBase& LogCategory,
 		const EMessageSeverity::Type Severity,
 		const FString& MessageStr,
-		const UObject* ContextObject = nullptr,
+		TArrayView<const UObject*> ContextObjects = {},
 		const bool bTryPointToSourceObject = true);
 
 #if NO_LOGGING
@@ -30,7 +30,7 @@ public:
 		const FNoLoggingCategory& LogCategory,
 		const EMessageSeverity::Type Severity,
 		const FString& MessageStr,
-		const UObject* ContextObject = nullptr,
+		TArrayView<const UObject*> ContextObjects = {},
 		const bool bTryPointToSourceObject = true);
 #endif
 
@@ -51,7 +51,6 @@ void LogToScreenAndConsole(const FNoLoggingCategory& Category, ELogVerbosity::Ty
 
 ZAKAZANEUTILITIES_API
 void LogToScreenAndConsole(const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const FString& Message);
-
 
 /// Logs a user configuration-related error message to the console, screen, and message log.
 ///
@@ -84,4 +83,22 @@ ZAKAZANEUTILITIES_API void LogUserError(
 	const UObject* ContextObject = nullptr,
 	const bool bTryPointToSourceObject = true);
 #endif
-} // namespace Zkz
+
+/// LogUserError variant allowing to link multiple context objects.
+ZAKAZANEUTILITIES_API
+void LogUserError(
+	const FLogCategoryBase& LogCategory,
+	const EMessageSeverity::Type Severity,
+	const FString& MessageStr,
+	TArrayView<const UObject*> ContextObjects,
+	const bool bTryPointToSourceObject = true);
+
+#if NO_LOGGING
+ZAKAZANEUTILITIES_API void LogUserError(
+	const FNoLoggingCategory& LogCategory,
+	const EMessageSeverity::Type Severity,
+	const FString& MessageStr,
+	TArrayView<const UObject*> ContextObjects,
+	const bool bTryPointToSourceObject = true);
+#endif
+}  // namespace Zkz

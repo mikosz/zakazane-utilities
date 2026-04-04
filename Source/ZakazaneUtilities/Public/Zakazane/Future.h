@@ -208,7 +208,7 @@ namespace AggregateFuturesPrivate
 
 template <class FutureType, class ResultType, class AggregateFuncType>
 auto DoAggregateFutures(
-	const TArrayView<TFuture<FutureType>> Futures, ResultType&& Initial, AggregateFuncType&& AggregateFunc)
+	const TArrayView<TFuture<FutureType>> Futures, ResultType Initial, AggregateFuncType AggregateFunc)
 {
 	// The example work done for (Initial, {Fut0, Fut1, Fut2}) is:
 	// * creates Promise {Fut0, Fut1, Fut2}
@@ -222,7 +222,7 @@ auto DoAggregateFutures(
 
 	if (Futures.IsEmpty())
 	{
-		Promise.SetValue(Forward<ResultType>(Initial));
+		Promise.SetValue(MoveTemp(Initial));
 		return AggregatedFuture;
 	}
 
@@ -231,12 +231,12 @@ auto DoAggregateFutures(
 	Head.Next(
 		[Tail = Futures.RightChop(1),
 		 Promise = MoveTemp(Promise),
-		 Initial = Forward<ResultType>(Initial),
+		 Initial = MoveTemp(Initial),
 		 AggregateFunc = MoveTemp(AggregateFunc)]<class FutureResultType>(FutureResultType&& FutureResult) mutable
 		{
 			DoAggregateFutures(
 				MoveTemp(Tail),
-				::Invoke(AggregateFunc, Forward<ResultType>(Initial), Forward<FutureResultType>(FutureResult)),
+				::Invoke(AggregateFunc, MoveTemp(Initial), Forward<FutureResultType>(FutureResult)),
 				MoveTemp(AggregateFunc))
 				.Next([Promise = MoveTemp(Promise)]<class FinalResultType>(FinalResultType&& FinalResult) mutable
 					  { Promise.EmplaceValue(Forward<FinalResultType>(FinalResult)); });
@@ -250,11 +250,10 @@ auto DoAggregateFutures(
 /// Creates a single future from multiple futures. The result value is built by calling the given aggregate func.
 /// The aggregate func is a binary function taking the accumulated result (or the Initial value) and a future
 /// result. The futures are aggregated in order passed to the Futures argument.
-template <
-	class FutureType,
-	class ResultType,
-	class AggregateFuncType UE_REQUIRES(TIsInvocable<AggregateFuncType, ResultType, FutureType>::Value)>
-auto AggregateFutures(TArray<TFuture<FutureType>> Futures, ResultType&& Initial, AggregateFuncType&& AggregateFunc)
+/// @returns TFuture<ResultType>
+template <class FutureType, class ResultType, class AggregateFuncType>
+	requires CInvokableR<AggregateFuncType, ResultType, ResultType, FutureType>
+auto AggregateFutures(TArray<TFuture<FutureType>> Futures, ResultType Initial, AggregateFuncType AggregateFunc)
 {
 	using namespace AggregateFuturesPrivate;
 
@@ -265,14 +264,70 @@ auto AggregateFutures(TArray<TFuture<FutureType>> Futures, ResultType&& Initial,
 	TPromise<ResultType> Promise;
 	auto AggregatedFuture = Promise.GetFuture();
 
-	DoAggregateFutures(MakeArrayView(Futures), Forward<ResultType>(Initial), Forward<AggregateFuncType>(AggregateFunc))
+	DoAggregateFutures(MakeArrayView(Futures), MoveTemp(Initial), MoveTemp(AggregateFunc))
 		.Next([Futures = MoveTemp(Futures),
 			   Promise = MoveTemp(Promise),
-			   Initial = Forward<ResultType>(Initial),
 			   AggregateFunc = MoveTemp(AggregateFunc)]<class AggregatedResultType>(
 				  AggregatedResultType&& Result) mutable { Promise.SetValue(Forward<AggregatedResultType>(Result)); });
 
 	return AggregatedFuture;
+}
+
+// #TODO #Future: it would make sense to allow providing a function to handle errors separately instead of just
+// returning the first error. The base use case is TPromiseCanceled which doesn't make sense to be aggregated.
+//
+/// Creates a single future from multiple futures. Aggregated futures are expected to return a TResult. If a future
+/// contains a value, that value is provided to the aggregate function and a result is returned. If any of the futures
+/// returns an error, that error becomes the result of the entire function, regardless of further results (the
+/// aggregate function is not called afterward).
+/// @returns TFuture<TResult<ResultValueType, FutureErrorType>>
+template <class FutureValueType, class FutureErrorType, class ResultValueType, class AggregateFuncType>
+	requires CInvokableR<AggregateFuncType, ResultValueType, ResultValueType, FutureValueType>
+auto AggregateFutureResults(
+	TArray<TFutureResult<FutureValueType, FutureErrorType>> Futures,
+	ResultValueType Initial,
+	AggregateFuncType AggregateFunc)
+{
+	using AggregatedResultType = TResult<TRemoveCVRef_t<ResultValueType>, FutureErrorType>;
+
+	return AggregateFutures(
+		MoveTemp(Futures),
+		AggregatedResultType{MoveTemp(Initial)},
+		[AggregateFunc =
+			 MoveTemp(AggregateFunc)](AggregatedResultType Lhs, TResult<FutureValueType, FutureErrorType> Rhs)
+			-> AggregatedResultType
+		{
+			ZKZ_RETURN_IF(Lhs.HasError(), Err(MoveTemp(Lhs).GetError()));
+			ZKZ_RETURN_IF(Rhs.HasError(), Err(MoveTemp(Rhs).GetError()));
+			return ::Invoke(AggregateFunc, MoveTemp(Lhs).GetValue(), MoveTemp(Rhs).GetValue());
+		});
+}
+
+/// AggregateFutureResults - no aggregate functions version. This version works for void results or any other
+/// cases where we're only interested in whether an error occurred.
+/// @returns TFuture<TResult<void, FutureErrorType>> aka TFutureResult<void, FutureErrorType>
+template <class FutureResultType, class FutureErrorType>
+auto AggregateFutureResults(TArray<TFutureResult<FutureResultType, FutureErrorType>> Futures)
+{
+	return AggregateFutures(
+		MoveTemp(Futures),
+		TResult<void, FutureErrorType>{},
+		[](TResult<void, FutureErrorType> Lhs,
+		   TResult<FutureResultType, FutureErrorType> Rhs) -> TResult<void, FutureErrorType>
+		{
+			ZKZ_RETURN_IF(Lhs.HasError(), Err(MoveTemp(Lhs).GetError()));
+			ZKZ_RETURN_IF(Rhs.HasError(), Err(MoveTemp(Rhs).GetError()));
+			return Ok();
+		});
+}
+
+/// Helper to create and immediately fulfill a promise
+template <typename ResultType, typename... ArgTypes>
+TCancelableFuture<ResultType> MakeImmediatePromise(ArgTypes&&... Args)
+{
+	TScopedPromise<ResultType> Promise;
+	Promise.EmplaceValue(Forward<ArgTypes>(Args)...);
+	return Promise.GetFuture();
 }
 
 }  // namespace Zkz

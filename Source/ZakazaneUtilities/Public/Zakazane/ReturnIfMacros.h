@@ -26,48 +26,63 @@
  * }
  */
 #define ZKZ_RETURN_IF(Expression, ...) \
-	if (Expression)                    \
+	do                                 \
 	{                                  \
-		return __VA_ARGS__;            \
-	}
+		if (Expression)                \
+		{                              \
+			return __VA_ARGS__;        \
+		}                              \
+	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF but also ensure-s the expression is false.
  */
 #define ZKZ_RETURN_IF_ENSURE(Expression, ...) \
-	if (!ensure(!(Expression)))               \
+	do                                        \
 	{                                         \
-		return __VA_ARGS__;                   \
-	}
+		if (!ensure(!(Expression)))           \
+		{                                     \
+			return __VA_ARGS__;               \
+		}                                     \
+	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF but also ensureMsgf-s the expression is false.
  * Message format arguments are currently not supported.
  */
 #define ZKZ_RETURN_IF_ENSUREMSGF(Expression, Msg, ...) \
-	if (!ensureMsgf(!(Expression), TEXT(#Msg)))        \
+	do                                                 \
 	{                                                  \
-		return __VA_ARGS__;                            \
-	}
+		if (!ensureMsgf(!(Expression), TEXT(#Msg)))    \
+		{                                              \
+			return __VA_ARGS__;                        \
+		}                                              \
+	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF but also ensureAlways-s the expression is false.
  */
 #define ZKZ_RETURN_IF_ENSUREALWAYS(Expression, ...) \
-	if (!ensureAlways(!(Expression)))               \
+	do                                              \
 	{                                               \
-		return __VA_ARGS__;                         \
-	}
+		if (!ensureAlways(!(Expression)))           \
+		{                                           \
+			return __VA_ARGS__;                     \
+		}                                           \
+	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF but also ensureAlwaysMsgf-s the expression is false.
  * Message format arguments are currently not supported.
  */
 #define ZKZ_RETURN_IF_ENSUREALWAYSMSGF(Expression, Msg, ...) \
-	if (!ensureAlwaysMsgf(!(Expression), TEXT(#Msg)))        \
+	do                                                       \
 	{                                                        \
-		return __VA_ARGS__;                                  \
-	}
+		if (!ensureAlwaysMsgf(!(Expression), TEXT(#Msg)))    \
+		{                                                    \
+			return __VA_ARGS__;                              \
+		}                                                    \
+	} while (false)
 
 /**
  * Macro simplifying adding IsValid checks to functions. Automatically returns from function if pointer is not valid.
@@ -93,45 +108,60 @@
  * }
  */
 #define ZKZ_RETURN_IF_INVALID(UObjectPtr, ...) \
-	if (!::IsValid(UObjectPtr))                \
+	do                                         \
 	{                                          \
-		return __VA_ARGS__;                    \
-	}
+		if (!::IsValid(UObjectPtr))            \
+		{                                      \
+			return __VA_ARGS__;                \
+		}                                      \
+	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF_INVALID but also ensure-s pointer is valid.
  */
 #define ZKZ_RETURN_IF_INVALID_ENSURE(UObjectPtr, ...) \
-	if (!ensure(::IsValid(UObjectPtr)))               \
+	do                                                \
 	{                                                 \
-		return __VA_ARGS__;                           \
-	}
+		if (!ensure(::IsValid(UObjectPtr)))           \
+		{                                             \
+			return __VA_ARGS__;                       \
+		}                                             \
+	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF_INVALID but also ensureMsgf-s pointer is valid.
  * Message format arguments are currently not supported.
  */
 #define ZKZ_RETURN_IF_INVALID_ENSUREMSGF(UObjectPtr, Msg, ...) \
-	if (!ensureMsgf(::IsValid(UObjectPtr), TEXT(#Msg)))        \
+	do                                                         \
 	{                                                          \
-		return __VA_ARGS__;                                    \
-	}
+		if (!ensureMsgf(::IsValid(UObjectPtr), TEXT(#Msg)))    \
+		{                                                      \
+			return __VA_ARGS__;                                \
+		}                                                      \
+	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF_INVALID but also ensureAlways-s pointer is valid.
  */
 #define ZKZ_RETURN_IF_INVALID_ENSUREALWAYS(UObjectPtr, ...) \
-	if (!ensureAlways(::IsValid(UObjectPtr)))               \
+	do                                                      \
 	{                                                       \
-		return __VA_ARGS__;                                 \
-	}
+		if (!ensureAlways(::IsValid(UObjectPtr)))           \
+		{                                                   \
+			return __VA_ARGS__;                             \
+		}                                                   \
+	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF_INVALID but also ensureAlwaysMsgf-s pointer is valid.
  * Message format arguments are currently not supported.
  */
 #define ZKZ_RETURN_IF_INVALID_ENSUREALWAYSMSGF(UObjectPtr, Msg, ...) \
-	if (!ensureAlwaysMsgf(::IsValid(UObjectPtr), TEXT(#Msg)))        \
+	do                                                               \
 	{                                                                \
-		return __VA_ARGS__;                                          \
-	}
+		if (!ensureAlwaysMsgf(::IsValid(UObjectPtr), TEXT(#Msg)))    \
+		{                                                            \
+			return __VA_ARGS__;                                      \
+		}                                                            \
+	} while (false)

@@ -1,6 +1,6 @@
 // Copyright ZAKAZANE Studio. All Rights Reserved.
 
-#include "Zakazane/Asset.h"
+#include "Zakazane/AssetFunctionLibrary.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
@@ -11,7 +11,10 @@
 #include "Factories/DataAssetFactory.h"
 #include "FileHelpers.h"
 #include "IAssetTools.h"
+#include "ISourceControlModule.h"
+#include "SourceControlOperations.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "UObject/SavePackage.h"
 #include "Zakazane/ReturnIfMacros.h"
 #include "ZakazaneGameEditorLog.h"
 
@@ -111,7 +114,7 @@ UObject* UZkzAssetFunctionLibrary::DuplicateAsset(UObject* SourceAsset, const FS
 UObject* UZkzAssetFunctionLibrary::CreateDataAsset(const FString& AssetPath, UClass* DataAssetClass)
 {
 	UDataAssetFactory* Factory = NewObject<UDataAssetFactory>();
-	ZKZ_RETURN_IF_INVALID(Factory, nullptr)
+	ZKZ_RETURN_IF_INVALID(Factory, nullptr);
 
 	Factory->DataAssetClass = DataAssetClass;
 
@@ -131,15 +134,15 @@ UObject* UZkzAssetFunctionLibrary::GetAssetByPath(const FString& AssetPath)
 	// Get file and path
 	const FName FileName = FName(*FPaths::GetBaseFilename(AssetPath));
 	const FName Path = FName(*FPaths::GetPath(AssetPath));
-	ZKZ_RETURN_IF(!FileName.IsValid(), nullptr)
-	ZKZ_RETURN_IF(!Path.IsValid(), nullptr)
+	ZKZ_RETURN_IF(!FileName.IsValid(), nullptr);
+	ZKZ_RETURN_IF(!Path.IsValid(), nullptr);
 
 	// Get assets from the registry
 	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 	//const TScriptInterface<IAssetRegistry> AssetRegistry = UAssetRegistryHelpers::GetAssetRegistry();
 	TArray<FAssetData> OutAssetsData;
 	AssetRegistry.GetAssetsByPath(Path, OutAssetsData);
-	ZKZ_RETURN_IF(OutAssetsData.IsEmpty(), nullptr)
+	ZKZ_RETURN_IF(OutAssetsData.IsEmpty(), nullptr);
 
 	// Find the asset by name
 	for (FAssetData AssetData : OutAssetsData)
@@ -154,7 +157,7 @@ UObject* UZkzAssetFunctionLibrary::GetAssetByPath(const FString& AssetPath)
 }
 FString UZkzAssetFunctionLibrary::GetWorldAssetPath(const UWorld* World, const FString& AssetName)
 {
-	ZKZ_RETURN_IF_INVALID(World, {})
+	ZKZ_RETURN_IF_INVALID(World, {});
 
 	// Prepare path
 	FString ResultPath = FPaths::GetPath(World->GetPathName()) + TEXT("/") + World->GetName() + TEXT("/") + AssetName;
@@ -163,7 +166,7 @@ FString UZkzAssetFunctionLibrary::GetWorldAssetPath(const UWorld* World, const F
 	FText ErrorMessage;
 	if (!FPaths::ValidatePath(ResultPath, &ErrorMessage))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Error while generating a path for the asset:%s"), *ErrorMessage.ToString())
+		UE_LOG(LogZakazaneGameEditor, Warning, TEXT("Error while generating a path for the asset:%s"), *ErrorMessage.ToString())
 		return {};
 	}
 
@@ -221,4 +224,78 @@ UObject* UZkzAssetFunctionLibrary::LoadAssetFromPath(const FString& _AssetPath)
 	UObject* assetLoaded = LoadObject<UObject>(nullptr, *assetPathConverted);
 
 	return assetLoaded;
+}
+
+bool UZkzAssetFunctionLibrary::CheckoutAndSaveAsset(UObject* InAsset)
+{
+	ZKZ_RETURN_IF_INVALID(InAsset, false);
+
+	UPackage* PackageToSave = InAsset->GetExternalPackage();
+	if (!IsValid(PackageToSave))
+	{
+		PackageToSave = InAsset->GetOutermost();
+	}
+	ZKZ_RETURN_IF_INVALID(PackageToSave, false);
+
+	const FString PackageFilename = PackageToSave->GetLoadedPath().GetLocalFullPath();
+	ZKZ_RETURN_IF(PackageFilename.IsEmpty(), false);
+
+	ZKZ_RETURN_IF(!CheckoutExternalPackage(PackageFilename), false);
+
+	InAsset->Modify();
+
+	FSavePackageArgs SaveArgs;
+	SaveArgs.TopLevelFlags = RF_Standalone;
+	SaveArgs.Error = GWarn;
+	SaveArgs.SaveFlags = SAVE_NoError;
+
+	return UPackage::SavePackage(PackageToSave, InAsset, *PackageFilename, SaveArgs);
+}
+
+bool UZkzAssetFunctionLibrary::CheckoutExternalPackage(const FString& InPackageFilename)
+{
+	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
+
+	ZKZ_RETURN_IF(!SourceControlProvider.IsEnabled(), true);
+
+	const FSourceControlStatePtr SourceControlState =
+		SourceControlProvider.GetState(InPackageFilename, EStateCacheUsage::ForceUpdate);
+
+	ZKZ_RETURN_IF(!SourceControlState.IsValid(), true);
+
+	if (SourceControlState->IsCheckedOutOther())
+	{
+		UE_LOG(LogZakazaneGameEditor, Error, TEXT("File %s is checked out by someone else. Skipping save!"), *InPackageFilename);
+		return false;
+	}
+
+	if (SourceControlState->IsCheckedOut())
+	{
+		return true;
+	}
+
+	if (SourceControlState->CanCheckout())
+	{
+		const FSourceControlOperationRef CheckoutOp = ISourceControlOperation::Create<FCheckOut>();
+		const ECommandResult::Type Result = SourceControlProvider.Execute(CheckoutOp, InPackageFilename);
+
+		if (Result != ECommandResult::Succeeded)
+		{
+			UE_LOG(LogZakazaneGameEditor, Error, TEXT("Failed to check out file: %s"), *InPackageFilename);
+			return false;
+		}
+	}
+	else if (!SourceControlState->IsSourceControlled())
+	{
+		const FSourceControlOperationRef AddOp = ISourceControlOperation::Create<FMarkForAdd>();
+		const ECommandResult::Type Result = SourceControlProvider.Execute(AddOp, InPackageFilename);
+
+		if (Result != ECommandResult::Succeeded)
+		{
+			UE_LOG(LogZakazaneGameEditor, Error, TEXT("Failed to mark file for add: %s"), *InPackageFilename);
+			return false;
+		}
+	}
+
+	return true;
 }

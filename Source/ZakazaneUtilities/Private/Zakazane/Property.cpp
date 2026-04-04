@@ -49,4 +49,20 @@ void EmitPropertyChangeNotifications(
 	PropertyAccessUtil::EmitPostChangeNotify(&ChangeNotify, bIdenticalValue);
 }
 
+FString AppendPropertyToPathName(
+	const FStringView PathName, const FStringView PropertyName, const TOptional<int32> Index)
+{
+	if (Index.IsSet())
+	{
+		return FString::Format(TEXT("{0}.{1}[{2}]"), {PathName, PropertyName, *Index});
+	}
+
+	return FString::Format(TEXT("{0}.{1}"), {PathName, PropertyName});
+}
+
+FString AppendPropertyToPathName(const FStringView PathName, const FName PropertyName, const TOptional<int32> Index)
+{
+	return AppendPropertyToPathName(PathName, PropertyName.ToString(), Index);
+}
+
 }  // namespace Zkz::Game::Editor
