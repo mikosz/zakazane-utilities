@@ -98,6 +98,26 @@ static_assert(FSum{}(1, 2) == 3);
 static_assert(FSum{}(1, 2, 3) == 6);
 static_assert(FSum{}(1.0f, 2.0, 3) == 6);
 
+/// Unary functor returning the result of == operator against the value passed during construction.
+template <class LhsType>
+struct TEquals
+{
+	LhsType Lhs;
+
+	constexpr explicit TEquals(LhsType InLhs) : Lhs{MoveTemp(InLhs)}
+	{
+	}
+
+	template <class RhsType>
+	constexpr bool operator()(RhsType&& Rhs) const
+	{
+		return Lhs == Forward<RhsType>(Rhs);
+	}
+};
+
+static_assert(TEquals{3}(3));
+static_assert(!TEquals{3}(4));
+
 /// Constexpr version of FIdentityFunctor
 struct FIdentityFunctor
 {

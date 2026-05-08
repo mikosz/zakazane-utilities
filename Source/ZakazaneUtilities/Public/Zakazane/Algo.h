@@ -9,6 +9,7 @@
 #include "Templates/Invoke.h"
 #include "Templates/Less.h"
 #include "Templates/UnrealTemplate.h"
+#include "TypeTraits.h"
 
 #include <type_traits>
 
@@ -36,7 +37,96 @@ auto MinBy(RangeType&& Range, ProjectionType Projection, ComparatorType Comparat
 	return Result;
 }
 
+template <class RangeType>
+concept CHasNum = requires(RangeType& Range) {
+	{ Range.Num() } -> std::convertible_to<int32>;
+};
+
+template <class RangeType>
+concept CHasReserve = requires(RangeType& Range) { Range.Reserve(); };
+
 }  // namespace AlgoImpl
+
+/// Does what Algo::Transform does, but returns a new container instead of taking an output parameter.
+/// @tparam OutContainerType - result container type
+template <class OutContainerType, class InContainerType, class FunctionType, class... AdditionalArgTypes>
+	requires(CInvokable<FunctionType, const InContainerType::ElementType&, AdditionalArgTypes...>)
+OutContainerType TransformTo(
+	const InContainerType& InContainer, FunctionType&& F, AdditionalArgTypes&&... AdditionalArgs)
+{
+	OutContainerType Result;
+
+	if constexpr (AlgoImpl::CHasReserve<OutContainerType> && AlgoImpl::CHasNum<InContainerType>)
+	{
+		Result.Reserve(InContainer.Num());
+	}
+
+	for (const auto& Value : InContainer)
+	{
+		Result.Emplace(Invoke(F, Value, Forward<AdditionalArgTypes>(AdditionalArgs)...));
+	}
+
+	return Result;
+}
+
+/// Does what Algo::Transform does, but returns a new array instead of taking an output parameter.
+template <class InContainerType, class FunctionType, class... AdditionalArgTypes>
+	requires(CInvokable<FunctionType, const InContainerType::ElementType&, AdditionalArgTypes...>)
+auto Transform(const InContainerType& InContainer, FunctionType&& F, AdditionalArgTypes&&... AdditionalArgs)
+{
+	using TransformedType = decltype(::Invoke(
+		F, std::declval<typename InContainerType::ElementType>(), std::declval<AdditionalArgTypes>()...));
+
+	return TransformTo<TArray<TransformedType>>(
+		InContainer, Forward<FunctionType>(F), Forward<AdditionalArgTypes>(AdditionalArgs)...);
+}
+
+/// Does what Algo::TransformIf does, but returns a new container instead of taking an output parameter.
+/// @tparam OutContainerType - result container type
+template <
+	class OutContainerType,
+	class InContainerType,
+	class PredicateType,
+	class FunctionType,
+	class... AdditionalArgTypes>
+	requires(CInvokable<FunctionType, const InContainerType::ElementType&, AdditionalArgTypes...>)
+OutContainerType TransformIf(
+	const InContainerType& InContainer, PredicateType&& P, FunctionType&& F, AdditionalArgTypes&&... AdditionalArgs)
+{
+	OutContainerType Result;
+
+	if constexpr (AlgoImpl::CHasReserve<OutContainerType> && AlgoImpl::CHasNum<InContainerType>)
+	{
+		Result.Reserve(InContainer.Num());
+	}
+
+	// Re-implements Algo::TransformIf adding support for additional arguments
+	for (const auto& Value : InContainer)
+	{
+		if (Invoke(P, Value))
+		{
+			Result.Emplace(::Invoke(F, Value, Forward<AdditionalArgTypes>(AdditionalArgs)...));
+		}
+	}
+
+	return Result;
+}
+
+/// Does what Algo::TransformIf does, but returns a new container instead of taking an output parameter.
+template <class InContainerType, class PredicateType, class FunctionType, class... AdditionalArgTypes>
+	requires(CInvokable<FunctionType, const InContainerType::ElementType&, AdditionalArgTypes...>)
+auto TransformIf(
+	const InContainerType& InContainer, PredicateType&& P, FunctionType&& F, AdditionalArgTypes&&... AdditionalArgs)
+{
+	using TransformedType = decltype(::Invoke(
+		F, std::declval<typename InContainerType::ElementType>(), std::declval<AdditionalArgTypes>()...));
+
+	return TransformIf<TransformedType>(
+		InContainer,
+		Forward<PredicateType>(P),
+		Forward<FunctionType>(F),
+		Forward<AdditionalArgTypes>(AdditionalArgs)...);
+}
 
 /// Returns the array view index of an array element provided as a pointer. Useful to get indices of elements found by
 /// using Algo functions. Note that the pointer is not checked for nullness or for a valid index.

@@ -24,7 +24,8 @@ public class ZakazaneUtilities : ModuleRules
 			new[]
 			{
 				"Slate",
-				"SlateCore"
+				"SlateCore",
+				"ImGui"
 			}
 		);
 
@@ -38,6 +39,12 @@ public class ZakazaneUtilities : ModuleRules
 			});
 
 		AddUseEngineVersionDef(5, 5);
+
+		// By default, optional inspections are performed on non-shipping and non-test builds.
+		// If you want to override this behaviour use FORCE_XYZ_INSPECTIONS set to 0 (to force disable)
+		// or 1 (to force enable).
+		// PublicDefinitions.Add("FORCE_EXECUTION_GRAPH_INSPECTIONS=0");
+		// PublicDefinitions.Add("FORCE_BUDGETING_INSPECTIONS=0");
 	}
 
 	private void AddUseEngineVersionDef(int MajorVersion, int MinorVersion)
@@ -49,9 +56,5 @@ public class ZakazaneUtilities : ModuleRules
 		// Must remain public due to being used in header file
 		PublicDefinitions.Add(string.Format("ZAKAZANE_UTILITIES_USE_{0}_{1}={2}", MajorVersion, MinorVersion,
 			isGivenVersionOrOver ? 1 : 0));
-
-		// Uncomment this (e.g. conditionally for shipping builds) to skip optional sanity checks for
-		// ordered execution.
-		//PublicDefinitions.Add("NO_STAGED_EXECUTION_INSPECTION");
 	}
 }

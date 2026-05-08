@@ -101,4 +101,76 @@ ZAKAZANEUTILITIES_API void LogUserError(
 	TArrayView<const UObject*> ContextObjects,
 	const bool bTryPointToSourceObject = true);
 #endif
+
+template <class T>
+struct TIsLogCategory
+{
+private:
+	// There's no simple way in c++ to make a template match all template implementations of a given class
+	// (i.e., you can match "FLogCategory<ELogVerbosity::Warning, ELogVerbosity::All>", but not
+	// "FLogCategory"). The trick with the overloaded Test function is that calling it for a FLogCategory
+	// implementation will match the version returning true_type, and for any other type will match the
+	// version returning false_type. Value is then evaluated based on the return type of the matched function.
+
+	template <ELogVerbosity::Type DefaultVerbosity, ELogVerbosity::Type CompileTimeVerbosity>
+	// ReSharper disable once CppFunctionIsNotImplemented
+	static std::true_type Test(const FLogCategory<DefaultVerbosity, CompileTimeVerbosity>*);
+
+	// ReSharper disable once CppFunctionIsNotImplemented
+	static std::false_type Test(...);
+
+public:
+	static constexpr bool Value = decltype(Test(std::declval<T*>()))::value;
+};
+
+template <class T>
+concept CLogCategory = TIsLogCategory<T>::Value;
+
+/// Allows referencing user-provided log categories in a way compatible with UE_LOG.
+template <CLogCategory InLogCategoryType>
+class TLogCategoryRef
+{
+public:
+	using LogCategoryType = InLogCategoryType;
+
+	static constexpr ELogVerbosity::Type CompileTimeVerbosity = LogCategoryType::CompileTimeVerbosity;
+
+	static constexpr ELogVerbosity::Type GetCompileTimeVerbosity();
+
+	explicit TLogCategoryRef(const LogCategoryType& InLogCategory);
+
+	bool IsSuppressed(ELogVerbosity::Type VerbosityLevel) const;
+
+	// ReSharper disable once CppNonExplicitConversionOperator
+	operator const LogCategoryType&() const;
+
+private:
+	TNonNullPtr<const LogCategoryType> LogCategory;
+};
+
+// -- template implementations
+
+template <CLogCategory InLogCategoryType>
+constexpr ELogVerbosity::Type TLogCategoryRef<InLogCategoryType>::GetCompileTimeVerbosity()
+{
+	return CompileTimeVerbosity;
+}
+
+template <CLogCategory InLogCategoryType>
+TLogCategoryRef<InLogCategoryType>::TLogCategoryRef(const LogCategoryType& InLogCategory) : LogCategory{&InLogCategory}
+{
+}
+
+template <CLogCategory InLogCategoryType>
+bool TLogCategoryRef<InLogCategoryType>::IsSuppressed(ELogVerbosity::Type VerbosityLevel) const
+{
+	return LogCategory->IsSuppressed(VerbosityLevel);
+}
+
+template <CLogCategory InLogCategoryType>
+TLogCategoryRef<InLogCategoryType>::operator const InLogCategoryType&() const
+{
+	return *LogCategory;
+}
+
 }  // namespace Zkz

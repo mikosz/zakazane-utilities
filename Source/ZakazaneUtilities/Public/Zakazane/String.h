@@ -5,11 +5,31 @@
 #include "CoreMinimal.h"
 
 #include "GameplayTagContainer.h"
+#include "Templates/Invoke.h"
 
 struct FGameplayTag;
 
 namespace Zkz::String
 {
+
+enum class ESkipEmptySegments
+{
+	Yes,
+	No
+};
+
+/// Iterates over segments of the given string delimited by the given character. Calls Func for each segment.
+template <class CharType, class FuncType>
+void ForEachSegment(
+	TStringView<CharType> String,
+	CharType Delimiter,
+	FuncType&& Func,
+	ESkipEmptySegments SkipEmptySegments = ESkipEmptySegments::Yes);
+
+/// Splits the given string using the given delimiter and puts the segments into the given range.
+template <class RangeType, class CharType>
+RangeType ParseInto(
+	TStringView<CharType> String, CharType Delimiter, ESkipEmptySegments SkipEmptySegments = ESkipEmptySegments::Yes);
 
 /// @return Elems rightmost segments of the given string delimited by the given character. E.g. for x.y.z
 /// * Elems == 1 will return "z"
@@ -63,6 +83,40 @@ StringType Abbreviate(
 
 namespace Zkz::String
 {
+
+template <class CharType, class FuncType>
+void ForEachSegment(
+	TStringView<CharType> String, const CharType Delimiter, FuncType&& Func, const ESkipEmptySegments SkipEmptySegments)
+{
+	for (;;)
+	{
+		int32 Index;
+		if (!String.FindChar(Delimiter, Index))
+		{
+			if (!String.IsEmpty() || SkipEmptySegments == ESkipEmptySegments::No)
+			{
+				::Invoke(Func, String);
+			}
+			return;
+		}
+
+		if (Index > 0 || SkipEmptySegments == ESkipEmptySegments::No)
+		{
+			::Invoke(Func, String.Left(Index));
+		}
+
+		String = String.RightChop(Index + 1);
+	}
+}
+
+template <class RangeType, class CharType>
+RangeType ParseInto(
+	const TStringView<CharType> String, const CharType Delimiter, const ESkipEmptySegments SkipEmptySegments)
+{
+	RangeType Range;
+	ForEachSegment(String, Delimiter, [&Range](const auto& Segment) { Range.Emplace(Segment); }, SkipEmptySegments);
+	return Range;
+}
 
 template <class StringType>
 StringType Abbreviate(

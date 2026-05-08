@@ -45,7 +45,8 @@ static_assert(IsVariant_V<TVariant<int, double, char>>);
 /// Func(TTypeTag<double>);
 /// Func(TTypeTag<char>);
 /// @endcode
-template <class VariantType, class FunctionType UE_REQUIRES(IsVariant_V<VariantType>)>
+template <class VariantType, class FunctionType>
+	requires IsVariant_V<VariantType>
 void ForEachVariantType(FunctionType&& Function)
 {
 	Private::ForEachVariantType(TTypeTag<VariantType>{}, Forward<FunctionType>(Function));
@@ -58,14 +59,16 @@ void ForEachVariantType(FunctionType&& Function)
 /// @endcode
 /// both types derive from UPrimitiveComponent, so you could call
 /// @code VariantInvoke(V, &USceneComponent::GetComponentTransform) @endcode instead of the more complicated Visit.
-template <class VariantType, class FunctionType UE_REQUIRES(IsVariant_V<std::decay_t<VariantType>>)>
+template <class VariantType, class FunctionType>
+	requires IsVariant_V<std::decay_t<VariantType>>
 auto VariantInvoke(VariantType&& Variant, FunctionType&& Function)
 {
 	return Visit([&]<class T>(T&& V) { return Invoke(Function, Forward<T>(V)); }, Forward<VariantType>(Variant));
 }
 
 /// Constructs a variant object in-place and returns a reference to the object.
-template <class EmplaceType, class VariantType, class... ArgTypes UE_REQUIRES(IsVariant_V<std::decay_t<VariantType>>)>
+template <class EmplaceType, class VariantType, class... ArgTypes>
+	requires IsVariant_V<std::decay_t<VariantType>>
 EmplaceType& VariantEmplace_GetRef(VariantType& Variant, ArgTypes&&... Args)
 {
 	Variant.template Emplace<EmplaceType>(Forward<ArgTypes>(Args)...);

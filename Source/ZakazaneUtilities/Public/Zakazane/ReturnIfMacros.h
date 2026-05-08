@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Zakazane/Pointer.h"
+
 /**
  * Macro simplifying adding verification code to functions. Automatically returns from function if expression is true.
  * Optional second parameter is the return value.
@@ -93,7 +95,7 @@
  *
  * expands to:
  * 
- * if (!IsValid(Pointer))
+ * if (!Zkz::Pointer::IsValid(Pointer))
  * {
  *     return;
  * }
@@ -102,66 +104,66 @@
  *
  * expands to:
  * 
- * if (!IsValid(Pointer))
+ * if (!Zkz::Pointer::IsValid(Pointer))
  * {
  *     return false;
  * }
  */
-#define ZKZ_RETURN_IF_INVALID(UObjectPtr, ...) \
-	do                                         \
-	{                                          \
-		if (!::IsValid(UObjectPtr))            \
-		{                                      \
-			return __VA_ARGS__;                \
-		}                                      \
+#define ZKZ_RETURN_IF_INVALID(Ptr, ...)  \
+	do                                   \
+	{                                    \
+		if (!Zkz::Pointer::IsValid(Ptr)) \
+		{                                \
+			return __VA_ARGS__;          \
+		}                                \
 	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF_INVALID but also ensure-s pointer is valid.
  */
-#define ZKZ_RETURN_IF_INVALID_ENSURE(UObjectPtr, ...) \
-	do                                                \
-	{                                                 \
-		if (!ensure(::IsValid(UObjectPtr)))           \
-		{                                             \
-			return __VA_ARGS__;                       \
-		}                                             \
+#define ZKZ_RETURN_IF_INVALID_ENSURE(Ptr, ...)   \
+	do                                           \
+	{                                            \
+		if (!ensure(Zkz::Pointer::IsValid(Ptr))) \
+		{                                        \
+			return __VA_ARGS__;                  \
+		}                                        \
 	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF_INVALID but also ensureMsgf-s pointer is valid.
  * Message format arguments are currently not supported.
  */
-#define ZKZ_RETURN_IF_INVALID_ENSUREMSGF(UObjectPtr, Msg, ...) \
-	do                                                         \
-	{                                                          \
-		if (!ensureMsgf(::IsValid(UObjectPtr), TEXT(#Msg)))    \
-		{                                                      \
-			return __VA_ARGS__;                                \
-		}                                                      \
+#define ZKZ_RETURN_IF_INVALID_ENSUREMSGF(Ptr, Msg, ...)          \
+	do                                                           \
+	{                                                            \
+		if (!ensureMsgf(Zkz::Pointer::IsValid(Ptr), TEXT(#Msg))) \
+		{                                                        \
+			return __VA_ARGS__;                                  \
+		}                                                        \
 	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF_INVALID but also ensureAlways-s pointer is valid.
  */
-#define ZKZ_RETURN_IF_INVALID_ENSUREALWAYS(UObjectPtr, ...) \
-	do                                                      \
-	{                                                       \
-		if (!ensureAlways(::IsValid(UObjectPtr)))           \
-		{                                                   \
-			return __VA_ARGS__;                             \
-		}                                                   \
+#define ZKZ_RETURN_IF_INVALID_ENSUREALWAYS(Ptr, ...)   \
+	do                                                 \
+	{                                                  \
+		if (!ensureAlways(Zkz::Pointer::IsValid(Ptr))) \
+		{                                              \
+			return __VA_ARGS__;                        \
+		}                                              \
 	} while (false)
 
 /**
  * Same as ZKZ_RETURN_IF_INVALID but also ensureAlwaysMsgf-s pointer is valid.
  * Message format arguments are currently not supported.
  */
-#define ZKZ_RETURN_IF_INVALID_ENSUREALWAYSMSGF(UObjectPtr, Msg, ...) \
-	do                                                               \
-	{                                                                \
-		if (!ensureAlwaysMsgf(::IsValid(UObjectPtr), TEXT(#Msg)))    \
-		{                                                            \
-			return __VA_ARGS__;                                      \
-		}                                                            \
+#define ZKZ_RETURN_IF_INVALID_ENSUREALWAYSMSGF(Ptr, Msg, ...)          \
+	do                                                                 \
+	{                                                                  \
+		if (!ensureAlwaysMsgf(Zkz::Pointer::IsValid(Ptr), TEXT(#Msg))) \
+		{                                                              \
+			return __VA_ARGS__;                                        \
+		}                                                              \
 	} while (false)

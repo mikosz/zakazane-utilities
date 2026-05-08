@@ -20,6 +20,31 @@ ZKZ_ADD_TEST(GetRightmostSegmentsTest)
 	TestEqual("4", GetRightmostSegments(TEXT("abc.def.ghi"), TCHAR{'.'}, 4), FStringView{TEXT("abc.def.ghi")});
 }
 
+ZKZ_ADD_TEST(ParseIntoTest)
+{
+	const auto Empty = ParseInto<TArray<FAnsiString>>(FAnsiStringView{""}, '.');
+	TestTrue("Empty", Empty.IsEmpty());
+
+	const auto EmptyNoSkip = ParseInto<TArray<FAnsiString>>(FAnsiStringView{""}, '.', ESkipEmptySegments::No);
+	TestEqual("EmptyNoSkip", EmptyNoSkip, {""});
+
+	const auto Dot = ParseInto<TArray<FAnsiString>>(FAnsiStringView{"."}, '.');
+	TestTrue("Dot", Dot.IsEmpty());
+
+	const auto DotNoSkip = ParseInto<TArray<FAnsiString>>(FAnsiStringView{"."}, '.', ESkipEmptySegments::No);
+	TestEqual("DotNoSkip", DotNoSkip, {"", ""});
+
+	const auto Single = ParseInto<TArray<FAnsiString>>(FAnsiStringView{"I"}, '.');
+	TestEqual("Single", Single, {"I"});
+
+	const auto Multiple = ParseInto<TArray<FAnsiString>>(FAnsiStringView{"I.Am.A.Longer.String"}, '.');
+	TestEqual("Multiple", Multiple, {"I", "Am", "A", "Longer", "String"});
+
+	const auto MultipleNoSkip =
+		ParseInto<TArray<FAnsiString>>(FAnsiStringView{".I.Am.A..Longer.String."}, '.', ESkipEmptySegments::No);
+	TestEqual("MultipleNoSkip", MultipleNoSkip, {"", "I", "Am", "A", "", "Longer", "String", ""});
+}
+
 ZKZ_ADD_TEST(AbbreviateTest)
 {
 	{

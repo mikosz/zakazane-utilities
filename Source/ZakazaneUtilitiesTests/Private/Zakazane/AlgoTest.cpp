@@ -36,6 +36,21 @@ ZKZ_ADD_TEST(MinBy)
 	TestEqual("MinBy with comparator", MinBy(ArrayOfInts, [](const auto V) { return -V; }, TGreater<>{}).Get(0), 90);
 }
 
+ZKZ_ADD_TEST(Transform)
+{
+	using ContainerType = TArray<int32, TInlineAllocator<3>>;
+	
+	const auto Times = [](const int32 Lhs, const int32 Rhs){ return Lhs * Rhs;};
+	
+	const auto ArrayOfInts = TArray{0, 1, 2};
+	
+	const auto DoublesArray = Transform(ArrayOfInts, Times, 2);
+	TestEqual("Transform with array result", DoublesArray, TArray{0, 2, 4});
+	
+	const auto TriplesArray = TransformTo<ContainerType>(ArrayOfInts, Times, 3);
+	TestEqual("Transform with container result", TriplesArray, ContainerType{0, 3, 6});
+}
+
 ZKZ_END_AUTOMATION_TEST(FAlgoTest);
 
 }  // namespace Zkz::Test

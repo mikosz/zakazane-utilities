@@ -629,14 +629,13 @@ constexpr TResult<ValueType, InnerErrorType> CollapseNestedResults(
 
 /// If provided Result contains an error, returns from the current function propagating that error.
 /// The outer function result may be a different result type, but it must be constructible using Err(internal error)
-#define ZKZ_PROPAGATE_IF_ERROR(Result)                                                                            \
-	do                                                                                                            \
-	{                                                                                                             \
-		static_assert(std::is_lvalue_reference_v<decltype((Result))>);                                            \
-		if (auto& Reference_ZKZ_RETURN_ERROR_IF_LOCAL = (Result); Reference_ZKZ_RETURN_ERROR_IF_LOCAL.HasError()) \
-		{                                                                                                         \
-			return Err(MoveTempIfPossible(Reference_ZKZ_RETURN_ERROR_IF_LOCAL).GetError());                       \
-		}                                                                                                         \
+#define ZKZ_PROPAGATE_IF_ERROR(Result)                                                                             \
+	do                                                                                                             \
+	{                                                                                                              \
+		if (auto&& Reference_ZKZ_RETURN_ERROR_IF_LOCAL = (Result); Reference_ZKZ_RETURN_ERROR_IF_LOCAL.HasError()) \
+		{                                                                                                          \
+			return Err(MoveTempIfPossible(Reference_ZKZ_RETURN_ERROR_IF_LOCAL).GetError());                        \
+		}                                                                                                          \
 	} while (false)
 
 namespace ResultPrivate

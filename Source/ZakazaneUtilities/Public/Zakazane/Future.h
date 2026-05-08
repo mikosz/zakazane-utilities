@@ -102,28 +102,61 @@ private:
 };
 
 /// Helper function similar to Next, but only calls the continuation function if the future result does not hold a
-/// canceled promise error.
-template <class T, class FunctionType UE_REQUIRES(!std::is_void_v<T> && TIsInvocable<FunctionType, T>::Value)>
-void IfNotCanceled(TCancelableFuture<T> CancelableFuture, FunctionType F)
+/// canceled promise error. Accepts additional args who are passed to the provided functors after the future
+/// result.
+/// @returns a cancelable future with the result returned by the given function F for continuation chaining
+template <class T, class FunctionType, class... AdditionalArgTypes>
+	requires(!std::is_void_v<T> && CInvokable<FunctionType, T, AdditionalArgTypes...>)
+// ReSharper disable once CppEnforceFunctionDeclarationStyle
+auto IfNotCanceled(TCancelableFuture<T> CancelableFuture, FunctionType F, AdditionalArgTypes... AdditionalArgs)
+	-> TCancelableFuture<std::invoke_result_t<FunctionType, T, AdditionalArgTypes...>>
 {
-	CancelableFuture.Next(
-		[F = MoveTemp(F)](TResult<T, FPromiseCanceled> Result) mutable
+	using InternalFunctionResult = std::invoke_result_t<FunctionType, T, AdditionalArgTypes...>;
+
+	return CancelableFuture.Next(
+		[F = MoveTemp(F), ... AdditionalArgs = MoveTemp(AdditionalArgs)](
+			TResult<T, FPromiseCanceled> Result) mutable -> TCancelableFutureResult<InternalFunctionResult>
 		{
-			ZKZ_RETURN_IF(!Result.HasValue());
-			F(MoveTemp(Result).GetValue());
+			ZKZ_RETURN_IF(Result.HasError(), Err(FPromiseCanceled{}));
+			if constexpr (std::is_void_v<InternalFunctionResult>)
+			{
+				::Invoke(MoveTemp(F), MoveTemp(Result).GetValue(), MoveTemp(AdditionalArgs)...);
+				return Ok();
+			}
+			else
+			{
+				return Ok(::Invoke(MoveTemp(F), MoveTemp(Result).GetValue(), MoveTemp(AdditionalArgs)...));
+			}
 		});
 }
 
-template <class FunctionType UE_REQUIRES(TIsInvocable<FunctionType>::Value)>
-void IfNotCanceled(TCancelableFuture<void> CancelableFuture, FunctionType F)
+template <class FunctionType, class... AdditionalArgTypes>
+	requires(CInvokable<FunctionType, AdditionalArgTypes...>)
+// ReSharper disable once CppEnforceFunctionDeclarationStyle
+auto IfNotCanceled(TCancelableFuture<void> CancelableFuture, FunctionType F, AdditionalArgTypes... AdditionalArgs)
+	-> TCancelableFuture<std::invoke_result_t<FunctionType, AdditionalArgTypes...>>
 {
-	CancelableFuture.Next(
-		[F = MoveTemp(F)](const TResult<void, FPromiseCanceled> Result) mutable
+	using InternalFunctionResult = std::invoke_result_t<FunctionType, AdditionalArgTypes...>;
+
+	return CancelableFuture.Next(
+		[F = MoveTemp(F), ... AdditionalArgs = MoveTemp(AdditionalArgs)](
+			const TResult<void, FPromiseCanceled> Result) mutable -> TCancelableFutureResult<InternalFunctionResult>
 		{
-			ZKZ_RETURN_IF(!Result.HasValue());
-			F();
+			ZKZ_RETURN_IF(Result.HasError(), Err(FPromiseCanceled{}));
+			if constexpr (std::is_void_v<InternalFunctionResult>)
+			{
+				::Invoke(MoveTemp(F), MoveTemp(AdditionalArgs)...);
+				return Ok();
+			}
+			else
+			{
+				return Ok(::Invoke(MoveTemp(F), MoveTemp(AdditionalArgs)...));
+			}
 		});
 }
+
+// #TODO #Future: TFuture::Next actually returns a future for chaining, despite the comment stating otherwise,
+// we can do this.
 
 /// Like TFuture::Next, but returns another TFuture for chaining. The TFuture type depends on the value returned by the provided
 /// function. This has overhead, just use TFuture::Next if you don't need chaining.
@@ -157,12 +190,12 @@ template <class T, class FunctionType UE_REQUIRES(TIsInvocable<FunctionType, T>:
 		{
 			if constexpr (std::is_same_v<FContinuationResult, void>)
 			{
-				::Invoke(Continuation, Forward<T>(Value));
+				::Invoke(MoveTemp(Continuation), Forward<T>(Value));
 				ChainPromise.EmplaceValue();
 			}
 			else
 			{
-				ChainPromise.EmplaceValue(::Invoke(Continuation, Forward<T>(Value)));
+				ChainPromise.EmplaceValue(::Invoke(MoveTemp(Continuation), Forward<T>(Value)));
 			}
 		});
 
@@ -181,12 +214,12 @@ template <class FunctionType UE_REQUIRES(TIsInvocable<FunctionType>::Value)>
 		{
 			if constexpr (std::is_same_v<FContinuationResult, void>)
 			{
-				::Invoke(Continuation);
+				::Invoke(MoveTemp(Continuation));
 				ChainPromise.EmplaceValue();
 			}
 			else
 			{
-				ChainPromise.EmplaceValue(::Invoke(Continuation));
+				ChainPromise.EmplaceValue(::Invoke(MoveTemp(Continuation)));
 			}
 		});
 
@@ -234,10 +267,8 @@ auto DoAggregateFutures(
 		 Initial = MoveTemp(Initial),
 		 AggregateFunc = MoveTemp(AggregateFunc)]<class FutureResultType>(FutureResultType&& FutureResult) mutable
 		{
-			DoAggregateFutures(
-				MoveTemp(Tail),
-				::Invoke(AggregateFunc, MoveTemp(Initial), Forward<FutureResultType>(FutureResult)),
-				MoveTemp(AggregateFunc))
+			auto Value = ::Invoke(AggregateFunc, MoveTemp(Initial), Forward<FutureResultType>(FutureResult));
+			DoAggregateFutures(MoveTemp(Tail), MoveTemp(Value), MoveTemp(AggregateFunc))
 				.Next([Promise = MoveTemp(Promise)]<class FinalResultType>(FinalResultType&& FinalResult) mutable
 					  { Promise.EmplaceValue(Forward<FinalResultType>(FinalResult)); });
 		});
@@ -251,9 +282,10 @@ auto DoAggregateFutures(
 /// The aggregate func is a binary function taking the accumulated result (or the Initial value) and a future
 /// result. The futures are aggregated in order passed to the Futures argument.
 /// @returns TFuture<ResultType>
-template <class FutureType, class ResultType, class AggregateFuncType>
+template <class FutureType, class ResultType, class AggregateFuncType, class AllocatorType>
 	requires CInvokableR<AggregateFuncType, ResultType, ResultType, FutureType>
-auto AggregateFutures(TArray<TFuture<FutureType>> Futures, ResultType Initial, AggregateFuncType AggregateFunc)
+auto AggregateFutures(
+	TArray<TFuture<FutureType>, AllocatorType> Futures, ResultType Initial, AggregateFuncType AggregateFunc)
 {
 	using namespace AggregateFuturesPrivate;
 
@@ -281,10 +313,15 @@ auto AggregateFutures(TArray<TFuture<FutureType>> Futures, ResultType Initial, A
 /// returns an error, that error becomes the result of the entire function, regardless of further results (the
 /// aggregate function is not called afterward).
 /// @returns TFuture<TResult<ResultValueType, FutureErrorType>>
-template <class FutureValueType, class FutureErrorType, class ResultValueType, class AggregateFuncType>
+template <
+	class FutureValueType,
+	class FutureErrorType,
+	class ResultValueType,
+	class AggregateFuncType,
+	class AllocatorType>
 	requires CInvokableR<AggregateFuncType, ResultValueType, ResultValueType, FutureValueType>
 auto AggregateFutureResults(
-	TArray<TFutureResult<FutureValueType, FutureErrorType>> Futures,
+	TArray<TFutureResult<FutureValueType, FutureErrorType>, AllocatorType> Futures,
 	ResultValueType Initial,
 	AggregateFuncType AggregateFunc)
 {
@@ -294,20 +331,20 @@ auto AggregateFutureResults(
 		MoveTemp(Futures),
 		AggregatedResultType{MoveTemp(Initial)},
 		[AggregateFunc =
-			 MoveTemp(AggregateFunc)](AggregatedResultType Lhs, TResult<FutureValueType, FutureErrorType> Rhs)
-			-> AggregatedResultType
+			 MoveTemp(AggregateFunc)](AggregatedResultType Lhs, TResult<FutureValueType, FutureErrorType> Rhs) mutable
+		-> AggregatedResultType
 		{
 			ZKZ_RETURN_IF(Lhs.HasError(), Err(MoveTemp(Lhs).GetError()));
 			ZKZ_RETURN_IF(Rhs.HasError(), Err(MoveTemp(Rhs).GetError()));
-			return ::Invoke(AggregateFunc, MoveTemp(Lhs).GetValue(), MoveTemp(Rhs).GetValue());
+			return ::Invoke(MoveTemp(AggregateFunc), MoveTemp(Lhs).GetValue(), MoveTemp(Rhs).GetValue());
 		});
 }
 
 /// AggregateFutureResults - no aggregate functions version. This version works for void results or any other
 /// cases where we're only interested in whether an error occurred.
 /// @returns TFuture<TResult<void, FutureErrorType>> aka TFutureResult<void, FutureErrorType>
-template <class FutureResultType, class FutureErrorType>
-auto AggregateFutureResults(TArray<TFutureResult<FutureResultType, FutureErrorType>> Futures)
+template <class FutureResultType, class FutureErrorType, class AllocatorType>
+auto AggregateFutureResults(TArray<TFutureResult<FutureResultType, FutureErrorType>, AllocatorType> Futures)
 {
 	return AggregateFutures(
 		MoveTemp(Futures),
@@ -321,9 +358,9 @@ auto AggregateFutureResults(TArray<TFutureResult<FutureResultType, FutureErrorTy
 		});
 }
 
-/// Helper to create and immediately fulfill a promise
+/// Helper to create and immediately fulfill a promise, returning a ready future.
 template <typename ResultType, typename... ArgTypes>
-TCancelableFuture<ResultType> MakeImmediatePromise(ArgTypes&&... Args)
+TCancelableFuture<ResultType> MakeImmediateFuture(ArgTypes&&... Args)
 {
 	TScopedPromise<ResultType> Promise;
 	Promise.EmplaceValue(Forward<ArgTypes>(Args)...);

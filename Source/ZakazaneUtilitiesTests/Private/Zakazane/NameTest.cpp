@@ -3,7 +3,7 @@
 
 #include <array>
 
-namespace Zkz::Math::Test
+namespace Zkz::Test
 {
 
 ZKZ_BEGIN_AUTOMATION_TEST(
@@ -31,4 +31,4 @@ ZKZ_ADD_TEST(AlphabeticalLessOrdersNumbers)
 
 ZKZ_END_AUTOMATION_TEST(FNameTest);
 
-}  // namespace Zkz::Math::Test
+}  // namespace Zkz::Test
