@@ -13,6 +13,7 @@ public class ZakazaneValidation : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
+				"Projects",
 				"DeveloperSettings",
 				"UnrealEd",
 				"DataValidation",
@@ -31,7 +32,8 @@ public class ZakazaneValidation : ModuleRules
 				"ZakazaneUtilitiesEditor",
 				"Blutility",
 				"UnrealEd",
-				"SourceControl"
+				"SourceControl",
+				"MessageLog"
 			}
 		);
 	}

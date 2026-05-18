@@ -3,14 +3,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "ZkzValidatorBase.h"
+
 #include "ZkzWorldActorsValidatorBase.generated.h"
 
 UCLASS(Abstract)
 class ZAKAZANEVALIDATION_API UZkzWorldActorsValidatorBase : public UZkzValidatorBase
 {
 	GENERATED_BODY()
-	
+
 public:
 	UZkzWorldActorsValidatorBase();
 
@@ -18,7 +20,10 @@ public:
 	virtual bool CanValidateAsset_Implementation(
 		const FAssetData& InAssetData, UObject* InObject, FDataValidationContext& InContext) const override;
 	// ~ UEditorValidatorBase
-	
+
 protected:
-	static void ForEachWorldActor(const UWorld* InWorld, const TFunction<void(const AActor&, const FTransform&)>& InFunction);
+	static void ForEachWorldActor(
+		const UWorld* InWorld,
+		const TFunction<void(const AActor&, const FTransform&)>& InFunction,
+		bool bSkipTransientActors = true);
 };

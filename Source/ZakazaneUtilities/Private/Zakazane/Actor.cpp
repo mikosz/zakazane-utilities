@@ -1,5 +1,7 @@
 ﻿#include "Zakazane/Actor.h"
 
+#include "UObject/GCObjectScopeGuard.h"
+
 #if WITH_EDITOR
 #include "EngineUtils.h"
 #include "LevelInstance/LevelInstanceActor.h"
@@ -40,6 +42,8 @@ void Zkz::ForEachActorWithLoadingInWorld(
 
 		if (UWorldPartition* const WorldPartition = World->GetWorldPartition(); IsValid(WorldPartition))
 		{
+			TGCObjectScopeGuard WorldPartitionGuard(WorldPartition);
+
 			FWorldPartitionHelpers::FForEachActorWithLoadingParams Params;
 			Params.bKeepReferences = bInKeepReferences;
 
@@ -75,14 +79,17 @@ void Zkz::ForEachActorWithLoadingInWorld(
 
 	while (!LevelInstancesToVisit.IsEmpty())
 	{
-		const ALevelInstance* const LevelInstance = LevelInstancesToVisit.Pop().LoadSynchronous();
+		ALevelInstance* const LevelInstance =
+			const_cast<ALevelInstance*>(LevelInstancesToVisit.Pop().LoadSynchronous());
 		ZKZ_CONTINUE_IF_INVALID(LevelInstance);
+		TGCObjectScopeGuard LevelInstanceGuard(LevelInstance);
 
 		const TSoftObjectPtr<UWorld>& WorldAsset = LevelInstance->GetWorldAsset();
 		ZKZ_CONTINUE_IF(WorldAsset.IsNull());
 
-		const UWorld* const SubLevelWorld = Cast<UWorld>(WorldAsset.LoadSynchronous());
+		UWorld* const SubLevelWorld = Cast<UWorld>(WorldAsset.LoadSynchronous());
 		ZKZ_CONTINUE_IF_INVALID(SubLevelWorld);
+		TGCObjectScopeGuard SubWorldGuard(SubLevelWorld);
 
 		Invoke(VisitWorldFunc, SubLevelWorld);
 	}

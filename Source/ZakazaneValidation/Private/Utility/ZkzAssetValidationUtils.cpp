@@ -1,27 +1,22 @@
 ﻿#include "ZkzAssetValidationUtils.h"
 
 #include "Algo/Find.h"
-#include "AssetRegistry/AssetDataToken.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Editor.h"
-#include "EngineUtils.h"
-#include "ISourceControlModule.h"
+#include "Interfaces/IPluginManager.h"
 #include "LevelEditorViewport.h"
-#include "LevelInstance/LevelInstanceLevelStreaming.h"
 #include "Logging/TokenizedMessage.h"
 #include "Misc/DataValidation.h"
+#include "Misc/UObjectToken.h"
 #include "Settings/ProjectPackagingSettings.h"
-#include "SourceControlOperations.h"
-#include "UObject/SavePackage.h"
-#include "WorldPartition/WorldPartition.h"
-#include "WorldPartition/WorldPartitionHelpers.h"
 #include "Zakazane/ContinueIfMacros.h"
+#include "Zakazane/Logging.h"
 #include "Zakazane/ReturnIfMacros.h"
-#include "ZkzValidationLogCategory.h"
+#include "ZakazaneValidation.h"
+#include "ZkzDataValidationProjectSettings.h"
 
 namespace Zkz::Game::Validation
 {
-
 // ~ FErrorHelper
 FErrorHelper::FErrorHelper(const FAssetData& AssetData, FDataValidationContext& Context)
 	: AssetData(AssetData), Context(Context)
@@ -55,6 +50,20 @@ void FErrorHelper::PrintError(const FText& ErrorMessage) const
 {
 	Context.AddMessage(EMessageSeverity::Error)->AddText(ErrorMessage);
 }
+
+FActorTokenInfo::FActorTokenInfo(const AActor* InActor, const FBox& InBoundingBoxInWorldSpace)
+{
+	SetActor(InActor);
+	BoundingBoxInWorldSpace = InBoundingBoxInWorldSpace;
+}
+
+void FActorTokenInfo::SetActor(const AActor* InActor)
+{
+	ZKZ_RETURN_IF_INVALID(InActor);
+
+	Actor = InActor;
+	ActorLabel = Actor->GetActorLabel();
+}
 // ~ FErrorHelper
 
 bool FZkzAssetValidationUtils::TryGetPrimaryAssetDataFromPackage(const FName& PackageName, FAssetData& OutAssetData)
@@ -78,6 +87,39 @@ void FZkzAssetValidationUtils::AddNeverCookDirectories(TSet<FString>& OutNeverCo
 	for (const FDirectoryPath& DirectoryPath : PackagingSettings->DirectoriesToNeverCook)
 	{
 		OutNeverCookDirectories.Emplace(DirectoryPath.Path);
+	}
+}
+
+void FZkzAssetValidationUtils::AddEnginePluginsDirectories(TSet<FString>& OutEnginePluginsDirectories)
+{
+	const IPluginManager& PluginManager = IPluginManager::Get();
+	for (const TSharedRef<IPlugin>& Plugin : PluginManager.GetEnabledPluginsWithContent())
+	{
+		ZKZ_CONTINUE_IF(Plugin->GetLoadedFrom() != EPluginLoadedFrom::Engine);
+
+		OutEnginePluginsDirectories.Emplace(Plugin->GetMountedAssetPath());
+	}
+}
+
+void FZkzAssetValidationUtils::AddGlobalValidationExcludePaths(TSet<FString>& OutGlobalValidationIgnorePaths)
+{
+	UZkzDataValidationProjectSettings* const Settings = GetMutableDefault<UZkzDataValidationProjectSettings>();
+	ZKZ_RETURN_IF_INVALID(Settings);
+
+	for (const FDirectoryPath& ExcludePath : Settings->GlobalValidationExcludePaths)
+	{
+		OutGlobalValidationIgnorePaths.Emplace(ExcludePath.Path);
+	}
+}
+
+void FZkzAssetValidationUtils::AddGlobalValidationIncludePaths(TSet<FString>& OutGlobalValidationIncludePaths)
+{
+	UZkzDataValidationProjectSettings* const Settings = GetMutableDefault<UZkzDataValidationProjectSettings>();
+	ZKZ_RETURN_IF_INVALID(Settings);
+
+	for (const FDirectoryPath& IncludePath : Settings->GlobalValidationIncludePaths)
+	{
+		OutGlobalValidationIncludePaths.Emplace(IncludePath.Path);
 	}
 }
 
@@ -107,50 +149,26 @@ void FZkzAssetValidationUtils::MoveViewportToActor(const FActorTokenInfo& ActorW
 	ViewportClient->FocusViewportOnBox(ActorWithLocation.BoundingBoxInWorldSpace);
 }
 
-UWorld* FZkzAssetValidationUtils::PrepareWorldForInitByName(const FString& MapName)
+// ReSharper disable once CppPassValueParameterByConstReference
+void FZkzAssetValidationUtils::OnActorTokenInfoActivated(const TSharedRef<IMessageToken>& Token, FBox InBoundingBox)
 {
-	UPackage* const MapPackage = LoadPackage(nullptr, *MapName, LOAD_None);
-	ZKZ_RETURN_IF_INVALID(MapPackage, nullptr);
+	const TSharedRef<FUObjectToken> UObjectToken = StaticCastSharedRef<FUObjectToken>(Token);
 
-	UWorld* const World = UWorld::FindWorldInPackage(MapPackage);
-	ZKZ_RETURN_IF_INVALID(World, nullptr);
+	UObject* const Object = FindObject<UObject>(nullptr, *UObjectToken->GetOriginalObjectPathName());
+	AActor* const ActorPtr = Cast<AActor>(Object);
 
-	World->WorldType = EWorldType::Editor;
-	World->AddToRoot();
-
-	SetWorldInitializationValues(World);
-
-	return World;
-}
-
-UWorld* FZkzAssetValidationUtils::PrepareWorldForInitByAsset(UObject* InAsset)
-{
-	UWorld* const World = Cast<UWorld>(InAsset);
-	ZKZ_RETURN_IF_INVALID(World, nullptr);
-
-	World->WorldType = EWorldType::Editor;
-
-	SetWorldInitializationValues(World);
-
-	return World;
-}
-
-void FZkzAssetValidationUtils::SetWorldInitializationValues(UWorld* World)
-{
-	ZKZ_RETURN_IF(World->bIsWorldInitialized);
-
-	UWorld::InitializationValues InitializationValues;
-	InitializationValues.RequiresHitProxies(false);
-	InitializationValues.ShouldSimulatePhysics(false);
-	InitializationValues.EnableTraceCollision(false);
-	InitializationValues.CreateNavigation(false);
-	InitializationValues.CreateAISystem(false);
-	InitializationValues.AllowAudioPlayback(false);
-
-	World->InitWorld(InitializationValues);
-	World->PersistentLevel->UpdateModelComponents();
-	World->UpdateWorldComponents(true, false);
-	World->FlushLevelStreaming(EFlushLevelStreamingType::Full);
+	if (IsValid(ActorPtr))
+	{
+		const FActorTokenInfo ActorTokenInfo{ActorPtr, InBoundingBox};
+		MoveViewportToActor(ActorTokenInfo);
+	}
+	else
+	{
+		LogUserError(
+			ZakazaneValidation,
+			EMessageSeverity::Error,
+			TEXT("Cannot move viewport. Actor is no longer available."));
+	}
 }
 
 }  // namespace Zkz::Game::Validation

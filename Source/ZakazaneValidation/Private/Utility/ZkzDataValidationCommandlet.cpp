@@ -15,7 +15,6 @@
 
 namespace ZkzDataValidationCommandletPrivate
 {
-
 TSet<FString> ParsePaths(const FString& FullCommandLine, const FString& SwitchName)
 {
 	TSet<FString> Paths;
@@ -36,8 +35,7 @@ TSet<FString> ParsePaths(const FString& FullCommandLine, const FString& SwitchNa
 
 	return Paths;
 }
-
-}  // namespace ZkzDataValidationCommandletPrivate
+} // namespace ZkzDataValidationCommandletPrivate
 
 int32 UZkzDataValidationCommandlet::Main(const FString& FullCommandLine)
 {
@@ -55,7 +53,8 @@ int32 UZkzDataValidationCommandlet::Main(const FString& FullCommandLine)
 	if (!ValidateData(FullCommandLine))
 	{
 		UE_LOG(LogZkzValidation, Warning, TEXT("Errors occurred while validating data"));
-		return 2;  // return something other than 1 for error since the engine will return 1 if any other system (possibly unrelated) logged errors during execution.
+		return 2;
+		// return something other than 1 for error since the engine will return 1 if any other system (possibly unrelated) logged errors during execution.
 	}
 
 	UE_LOG(LogZkzValidation, Log, TEXT("Successfully finished running ZkzDataValidation Commandlet"));
@@ -102,7 +101,9 @@ bool UZkzDataValidationCommandlet::ValidateData(const FString& FullCommandLine) 
 }
 
 bool UZkzDataValidationCommandlet::TryBuildAssetDataList(
-	const FString& FullCommandLine, const bool bIncludeOnlyOnDiskAssets, TArray<FAssetData>& OutAssetDataList) const
+	const FString& FullCommandLine,
+	const bool bIncludeOnlyOnDiskAssets,
+	TArray<FAssetData>& OutAssetDataList) const
 {
 	const FAssetRegistryModule& AssetRegistryModule =
 		FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName);
@@ -155,11 +156,16 @@ TSet<FString> UZkzDataValidationCommandlet::BuildSelectPaths(const FString& Full
 {
 	using namespace ZkzDataValidationCommandletPrivate;
 
-	return ParsePaths(FullCommandLine, TEXT("SelectPaths="));
+	TSet<FString> SelectPaths = ParsePaths(FullCommandLine, TEXT("SelectPaths="));
+
+	Zkz::Game::Validation::FZkzAssetValidationUtils::AddGlobalValidationIncludePaths(SelectPaths);
+
+	return SelectPaths;
 }
 
 TSet<FString> UZkzDataValidationCommandlet::BuildIgnorePaths(
-	const FString& FullCommandLine, const bool bIncludeNeverCookDirectories) const
+	const FString& FullCommandLine,
+	const bool bIncludeNeverCookDirectories) const
 {
 	using namespace ZkzDataValidationCommandletPrivate;
 
@@ -169,6 +175,9 @@ TSet<FString> UZkzDataValidationCommandlet::BuildIgnorePaths(
 	{
 		Zkz::Game::Validation::FZkzAssetValidationUtils::AddNeverCookDirectories(IgnorePaths);
 	}
+
+	Zkz::Game::Validation::FZkzAssetValidationUtils::AddEnginePluginsDirectories(IgnorePaths);
+	Zkz::Game::Validation::FZkzAssetValidationUtils::AddGlobalValidationExcludePaths(IgnorePaths);
 
 	return IgnorePaths;
 }
@@ -247,7 +256,9 @@ void UZkzDataValidationCommandlet::HandleBlueprintValidators(const TArray<FAsset
 			if (AssetData.AssetClassPath == EditorUtilityClassPath)
 			{
 				if (AssetData.TagsAndValues
-						.ContainsKeyValue(FBlueprintTags::NativeParentClassPath, EditorValidatorBaseClassExportPath))
+				             .ContainsKeyValue(
+					             FBlueprintTags::NativeParentClassPath,
+					             EditorValidatorBaseClassExportPath))
 				{
 					return true;
 				}

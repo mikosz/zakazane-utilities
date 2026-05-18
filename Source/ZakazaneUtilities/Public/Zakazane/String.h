@@ -77,6 +77,21 @@ StringType Abbreviate(
 	int32 MaxLength,
 	TStringView<typename StringType::ElementType> Ending = Ellipsis<typename StringType::ElementType>);
 
+/// E.x. InStr == "somestring" and InSubstr == "strong" with AllowedLevenshteinDistance == 1 return true (one char difference)
+/// @returns True if InSubstr can be found in InStr based on the params, False otherwise.
+/// @param bCaseSensitive Is comparison case-sensitive?
+/// @param AllowedLevenshteinDist Maximum allowed number of character edits for each segment required to match InSubstr
+/// @param DistPerChar Amount of distance added per each character that differs from InSubstr
+/// @param DistPerNum Amount of distance added per each number that differs from InSubstr
+template <class CharacterType>
+bool ContainsSimilar(
+	TStringView<CharacterType> InHaystack,
+	TStringView<CharacterType> InNeedle,
+	bool bCaseSensitive = true,
+	int32 AllowedLevenshteinDist = 0,
+	int32 DistPerChar = 1,
+	int32 DistPerNum = 3);
+
 }  // namespace Zkz::String
 
 // -- template implementations
@@ -133,6 +148,41 @@ StringType Abbreviate(
 	}
 
 	return String.Left(MaxLength - Ending.Len()) + Ending;
+}
+
+template <class CharacterType>
+bool ContainsSimilar(
+	const TStringView<CharacterType> InHaystack,
+	const TStringView<CharacterType> InNeedle,
+	const bool bCaseSensitive,
+	const int32 AllowedLevenshteinDist,
+	const int32 DistPerChar,
+	const int32 DistPerNum)
+{
+	const int32 HaystackLen = InHaystack.Len();
+	const int32 NeedleLen = InNeedle.Len();
+	const int32 SearchEnd = FMath::Max(HaystackLen - NeedleLen, 0);
+	for (int32 SearchIdx = 0; SearchIdx <= SearchEnd; SearchIdx++)
+	{
+		int32 CurrentDist = 0;
+		for (int32 CharIdx = 0; CharIdx < NeedleLen; CharIdx++)
+		{
+			const CharacterType HaystackChar = bCaseSensitive
+												   ? InHaystack[SearchIdx + CharIdx]
+												   : TChar<CharacterType>::ToLower(InHaystack[SearchIdx + CharIdx]);
+			const CharacterType NeedleChar =
+				bCaseSensitive ? InNeedle[CharIdx] : TChar<CharacterType>::ToLower(InNeedle[CharIdx]);
+			if (HaystackChar != NeedleChar)
+			{
+				CurrentDist += TChar<CharacterType>::IsDigit(NeedleChar) ? DistPerNum : DistPerChar;
+			}
+		}
+		if (CurrentDist <= AllowedLevenshteinDist)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 }  // namespace Zkz::String

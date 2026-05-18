@@ -46,9 +46,9 @@ FString BoolToString(const bool bValue)
 
 FString IntToString(int32 Value, bool AddSign)
 {
-	ZKZ_RETURN_IF(!AddSign,FString::FromInt(Value));
-	ZKZ_RETURN_IF(Value < 0,FString::FromInt(Value));
-	return FString::Format(TEXT("+{0}"),{Value});
+	ZKZ_RETURN_IF(!AddSign, FString::FromInt(Value));
+	ZKZ_RETURN_IF(Value < 0, FString::FromInt(Value));
+	return FString::Format(TEXT("+{0}"), {Value});
 }
 
 }  // namespace Zkz::String

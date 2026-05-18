@@ -1,15 +1,18 @@
 ﻿// Copyright ZAKAZANE Studio. All Rights Reserved.
 
+// ReSharper disable CppTooWideScope
 #include "ZkzOFPACleanCommandlet.h"
 
+#include "EditorWorldUtils.h"
+#include "UObject/GCObjectScopeGuard.h"
 #include "WorldPartition/WorldPartition.h"
 #include "Zakazane/Actor.h"
-#include "Zakazane/Asset.h"
 #include "Zakazane/AssetFunctionLibrary.h"
 #include "Zakazane/ContinueIfMacros.h"
 #include "ZkzAssetValidationUtils.h"
 #include "ZkzValidationLogCategory.h"
 
+class FScopedEditorWorld;
 UZkzOFPACleanCommandlet::UZkzOFPACleanCommandlet()
 {
 	IsClient = false;
@@ -125,30 +128,45 @@ bool UZkzOFPACleanCommandlet::ProcessMap(
 {
 	using namespace Zkz::Game::Validation;
 
-	UWorld* const World = FZkzAssetValidationUtils::PrepareWorldForInitByName(MapName);
-	if (!IsValid(World))
+	UPackage* const Package = LoadWorldPackageForEditor(MapName, EWorldType::Editor, LOAD_NoWarn | LOAD_Quiet);
+	if (!Package)
 	{
-		UE_LOG(LogZkzCommandlet, Error, TEXT("Failed to load world: %s"), *MapName);
+		UE_LOG(LogZkzCommandlet, Error, TEXT("Failed to load package for map: %s"), *MapName);
 		return false;
 	}
-	ON_SCOPE_EXIT
-	{
-		if (IsValid(World))
-		{
-			if (UWorldPartition* const WorldPartition = World->GetWorldPartition())
-			{
-				if (WorldPartition->IsInitialized())
-				{
-					WorldPartition->Uninitialize();
-				}
-			}
-			World->ClearWorldComponents();
-			World->CleanupWorld();
 
-			World->RemoveFromRoot();
-			CollectGarbage(RF_NoFlags);
-		}
-	};
+	UWorld* const World = UWorld::FindWorldInPackage(Package);
+	if (!IsValid(World))
+	{
+		UE_LOG(LogZkzCommandlet, Error, TEXT("Failed to find valid UWorld in package: %s"), *MapName);
+		return false;
+	}
+
+	TOptional<FScopedEditorWorld> ScopedEditorWorld;
+	TOptional<TGCObjectScopeGuard<UWorldPartition>> WorldPartitionGCGuard;
+
+	if (!World->IsInitialized())
+	{
+		UWorld::InitializationValues IVS;
+		IVS.InitializeScenes(false);
+		IVS.AllowAudioPlayback(false);
+		IVS.RequiresHitProxies(false);
+		IVS.CreatePhysicsScene(false);
+		IVS.CreateNavigation(false);
+		IVS.CreateAISystem(false);
+		IVS.ShouldSimulatePhysics(false);
+		IVS.EnableTraceCollision(false);
+		IVS.SetTransactional(false);
+		IVS.CreateFXSystem(false);
+		IVS.CreateWorldPartition(true);
+
+		ScopedEditorWorld.Emplace(World, IVS);
+	}
+
+	if (UWorldPartition* const WorldPartition = World->GetWorldPartition(); IsValid(WorldPartition))
+	{
+		WorldPartitionGCGuard.Emplace(WorldPartition);
+	}
 
 	TMap<AActor*, TArray<UActorComponent*>> ComponentsToCleanByActor;
 	if (World->IsPartitionedWorld())

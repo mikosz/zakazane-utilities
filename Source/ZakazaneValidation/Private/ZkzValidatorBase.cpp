@@ -18,8 +18,6 @@ UZkzValidatorBase::UZkzValidatorBase()
 	bFallbackIsEnabledForCook = true;
 	bOnlyPrintCustomMessage = true;
 	FZkzAssetValidationUtils::AddNeverCookDirectories(FallbackDisallowedPaths);
-
-	
 }
 
 bool UZkzValidatorBase::IsEnabledForCook() const
@@ -67,27 +65,31 @@ FString UZkzValidatorBase::GetInstructionURL() const
 }
 
 bool UZkzValidatorBase::CanValidateAsset_Implementation(
-	const FAssetData& InAssetData, UObject* InObject, FDataValidationContext& InContext) const
+	const FAssetData& InAssetData,
+	UObject* InObject,
+	FDataValidationContext& InContext) const
 {
 	using namespace Zkz::Game::Validation;
-	
+
 	ZKZ_RETURN_IF_INVALID(InObject, false);
-	
+
 	const EDataValidationUsecase ValidationUsecase = InContext.GetValidationUsecase();
 	if (ValidationUsecase == EDataValidationUsecase::Save && !IsRunningCookCommandlet())
 	{
 		ZKZ_RETURN_IF(!IsEnabledOnSave(), false);
 	}
-	
+
 	const FString AssetPath = InAssetData.PackagePath.ToString();
 	const bool bPathAllowed = CanValidatePath(AssetPath);
 	ZKZ_RETURN_IF(!bPathAllowed, false);
-	
+
 	return true;
 }
 
 EDataValidationResult UZkzValidatorBase::ValidateLoadedAsset_Implementation(
-	const FAssetData& InAssetData, UObject* InAsset, FDataValidationContext& Context)
+	const FAssetData& InAssetData,
+	UObject* InAsset,
+	FDataValidationContext& Context)
 {
 	UE_LOG(LogZkzValidation, Display, TEXT("[%s] Validating: %s"), *GetValidatorName(), *InAsset->GetPathName());
 	return EDataValidationResult::NotValidated;
@@ -126,7 +128,8 @@ EDataValidationResult UZkzValidatorBase::ValidationFailed(const UObject* InAsset
 }
 
 EDataValidationResult UZkzValidatorBase::ValidationUnexpectedlySkipped(
-	const UObject* InAsset, const TOptional<FText>& InWarnMsg)
+	const UObject* InAsset,
+	const TOptional<FText>& InWarnMsg)
 {
 	if (InWarnMsg.IsSet())
 	{
@@ -143,21 +146,28 @@ EDataValidationResult UZkzValidatorBase::ValidationUnexpectedlySkipped(
 
 TSet<FString> UZkzValidatorBase::BuildDisallowedPaths() const
 {
-	const FZkzValidatorConfig* const Config = UZkzDataValidationProjectSettings::GetActiveValidatorConfig(GetClass());
-	if (Config == nullptr)
-	{
-		return FallbackDisallowedPaths;
-	}
-
 	TSet<FString> DisallowedPaths;
-	for (const FDirectoryPath& DisallowedPath : Config->DisallowedPaths)
-	{
-		DisallowedPaths.Emplace(DisallowedPath.Path);
-	}
 
-	if (Config->bDisallowNeverCookDirectories)
+	DisallowedPaths.Emplace(TEXT("/Engine/"));
+	FZkzAssetValidationUtils::AddEnginePluginsDirectories(DisallowedPaths);
+	FZkzAssetValidationUtils::AddGlobalValidationExcludePaths(DisallowedPaths);
+
+	const FZkzValidatorConfig* const Config = UZkzDataValidationProjectSettings::GetActiveValidatorConfig(GetClass());
+	if (Config != nullptr)
 	{
-		FZkzAssetValidationUtils::AddNeverCookDirectories(DisallowedPaths);
+		for (const FDirectoryPath& DisallowedPath : Config->DisallowedPaths)
+		{
+			DisallowedPaths.Emplace(DisallowedPath.Path);
+		}
+
+		if (Config->bDisallowNeverCookDirectories)
+		{
+			FZkzAssetValidationUtils::AddNeverCookDirectories(DisallowedPaths);
+		}
+	}
+	else
+	{
+		DisallowedPaths.Append(FallbackDisallowedPaths);
 	}
 
 	return DisallowedPaths;
@@ -165,17 +175,23 @@ TSet<FString> UZkzValidatorBase::BuildDisallowedPaths() const
 
 TSet<FString> UZkzValidatorBase::BuildAllowedPaths() const
 {
+	TSet<FString> AllowedPaths;
+
+	FZkzAssetValidationUtils::AddGlobalValidationIncludePaths(AllowedPaths);
+
 	const FZkzValidatorConfig* const Config = UZkzDataValidationProjectSettings::GetActiveValidatorConfig(GetClass());
-	if (Config == nullptr)
+	if (Config != nullptr)
 	{
-		return FallbackAllowedPaths;
+		for (const FDirectoryPath& AllowedPath : Config->AllowedPaths)
+		{
+			AllowedPaths.Emplace(AllowedPath.Path);
+		}
+	}
+	else
+	{
+		AllowedPaths.Append(FallbackAllowedPaths);
 	}
 
-	TSet<FString> AllowedPaths;
-	for (const FDirectoryPath& AllowedPath : Config->AllowedPaths)
-	{
-		AllowedPaths.Emplace(AllowedPath.Path);
-	}
 	return AllowedPaths;
 }
 

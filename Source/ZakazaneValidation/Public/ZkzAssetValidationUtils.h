@@ -6,7 +6,6 @@
 
 namespace Zkz::Game::Validation
 {
-
 // ~FErrorHelper
 /// Struct that helps in printing Error also used to make summary more descriptive
 /// Validators can inherit from it to add custom data so it limits amount of arguments in check functions
@@ -57,9 +56,17 @@ void FErrorHelper::AddIssueAndPrintError(const FString& Issue, const FText& Form
 /// Stores Actor and its bounding box in world space.
 /// @note: In World Partitioned Levels when we look for actors they are stored with location relative to the world owning them.
 /// It makes Tokens to Actors from PLIs to move the Viewport Camera to Actor Location relative to PLI origin but in World Space.
-struct FActorTokenInfo
+struct ZAKAZANEVALIDATION_API FActorTokenInfo
 {
+	explicit FActorTokenInfo(const AActor* InActor, const FBox& InBoundingBoxInWorldSpace);
+
+	void SetActor(const AActor* InActor);
+
 	TWeakObjectPtr<const AActor> Actor;
+
+	/// If GC already wiped Actor, we can use this as a fallback to print a message
+	/// It will rarely happen in the editor, and we don't need actual Actor outside it
+	FString ActorLabel;
 
 	/// Used in Tokens to center the viewport on the Actor
 	FBox BoundingBoxInWorldSpace;
@@ -77,22 +84,16 @@ public:
 	/// Get NeverCookDirectories from Project Settings
 	static void AddNeverCookDirectories(TSet<FString>& OutNeverCookDirectories);
 
+	static void AddEnginePluginsDirectories(TSet<FString>& OutEnginePluginsDirectories);
+
+	static void AddGlobalValidationExcludePaths(TSet<FString>& OutGlobalValidationIgnorePaths);
+
+	static void AddGlobalValidationIncludePaths(TSet<FString>& OutGlobalValidationIncludePaths);
+
 	/// Moves the viewport to given Actor. Selecting the Actor if possible.
 	static void MoveViewportToActor(const FActorTokenInfo& ActorWithLocation);
 
-	/// Helper function for loading and initializing a world from a map name.
-	/// Using UWorld::InitializationValues to prevent the loading heavy systems like AI or navigation.
-	/// Based on WorldPartitionCommandletHelpers::LoadAndInitWorld, which in inconveniently inaccessible
-	/// @note World will be added to root make sure to remove it after processing
-	static UWorld* PrepareWorldForInitByName(const FString& MapName);
-
-	/// Helper function for loading and initializing a world from an asset UObject.
-	/// Based on WorldPartitionCommandletHelpers::LoadAndInitWorld, which in inconveniently inaccessible
-	static UWorld* PrepareWorldForInitByAsset(UObject* InAsset);
-
-private:
-	/// Performs a lightweight initialization on a World, bypassing heavy runtime systems.
-	static void SetWorldInitializationValues(UWorld* World);
+	static void OnActorTokenInfoActivated(const TSharedRef<IMessageToken>& Token, FBox InBoundingBox);
 };
 
 }  // namespace Zkz::Game::Validation

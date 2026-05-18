@@ -63,23 +63,39 @@ public:
 		EditAnywhere,
 		Category = "Validators",
 		meta =
-			(TitleProperty =
-				 "Enabled = {bIsEnabled}, Enabled for Cook = {bIsEnabledCook}, Enabled On Save = {bIsEnabledOnSave}"))
+		(TitleProperty =
+			"Enabled = {bIsEnabled}, Enabled for Cook = {bIsEnabledCook}, Enabled On Save = {bIsEnabledOnSave}"))
 	TMap<TSubclassOf<UZkzValidatorBase>, FZkzValidatorConfig> ValidatorConfigsByClass;
 	
+	/// Additional paths used to exclude asset from validating
+	UPROPERTY(Config, EditAnywhere, Category = "Global Config")
+	TArray<FDirectoryPath> GlobalValidationExcludePaths;
+	
+	/// Additional paths used to include asset from validating
+	UPROPERTY(Config, EditAnywhere, Category = "Global Config")
+	TArray<FDirectoryPath> GlobalValidationIncludePaths;
+
 	/// Add assets that will always be validated pre-submit
 	UPROPERTY(Config, EditAnywhere, Category = "Submit")
 	TArray<TSoftObjectPtr<UObject>> AssetsToAlwaysValidatePreSubmit;
-	
+
 	UPROPERTY(Config, EditAnywhere, Category = "ValidatorSpecific|ClusterActors")
 	TArray<TSubclassOf<UActorComponent>> AllowedClusterActorsComponents;
-	
+
+	// Combined with never cook content paths to make full list of assets we shouldn't reference
+	UPROPERTY(Config, EditAnywhere, Category = "ValidatorSpecific|NeverCookContentValidator", meta = (RelativeToGameContentDir))
+	TArray<FDirectoryPath> NeverCookContentValidator_AdditionalBlacklist;
+
+	// Combined with never cook content paths to make full list of assets we shouldn't reference
+	UPROPERTY(Config, EditAnywhere, Category = "ValidatorSpecific|NeverCookContentValidator", meta = (RelativeToGameContentDir))
+	TArray<FDirectoryPath> NeverCookContentValidator_AdditionalWhitelist;
+
 	/// Helper function to find the config for a specific validator class if config from "Editor Preferences" has higher priority.
 	static const FZkzValidatorConfig* GetActiveValidatorConfig(TSubclassOf<UZkzValidatorBase> ValidatorClass);
-	
+
 	/// Helper function to get assets that should always be validated pre-submit
 	static TArray<FName> GetAlwaysValidateAssetsPreSubmit();
-	
+
 	/// Getter for allowed cluster actors components
 	static TArray<TSubclassOf<UActorComponent>> GetAllowedClusterActorsComponents();
 };

@@ -4,6 +4,8 @@
 
 #include "Modules/ModuleManager.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(ZakazaneValidation, Log, All)
+
 class FZakazaneValidationModule : public IModuleInterface
 {
 public:
@@ -12,4 +14,7 @@ public:
 
 	/// Callback for UPackage::PackageSavedWithContextEvent
 	void OnPackageSaved(const FString& FileName, UPackage* Package, FObjectPostSaveContext SaveContext);
+	
+private:
+	const FName MessageLogName{"ZakazaneValidation"};
 };
