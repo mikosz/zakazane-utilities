@@ -32,36 +32,40 @@ struct TLiteralFunction
 
 static_assert(TLiteralFunction<42>{}() == 42);
 
-/// Allows function composition. Uses std::invoke for all invocations, so works with pointers to members, member
+/// Allows function composition. Uses Invoke for all invocations, so works with pointers to members, member
 /// functions etc.
 /// E.g.:
 ///		TCompose{&UActorComponent::Name, &FName::GetDisplayIndex}(ActorComp)
 ///	is equivalent to
 ///		ActorComp->Name.GetDisplayIndex()
+///
+///	Note: could be made constexpr if Invoke were constexpr (which it isn't at the time of writing).
+///	std::invoke is constexpr, but it doesn't support pointer-to-member, which is more useful than
+///	constexpr in this case.
 template <class HeadFuncType, class... TailFuncTypes>
 struct TCompose
 {
-	constexpr explicit TCompose(HeadFuncType InHead, TailFuncTypes... InTail)
+	explicit TCompose(HeadFuncType InHead, TailFuncTypes... InTail)
 		: Head{std::move(InHead)}, Tail{std::move(InTail)...}
 	{
 	}
 
 	template <class... ArgType>
-	constexpr decltype(auto) operator()(ArgType&&... Arg) &
+	decltype(auto) operator()(ArgType&&... Arg) &
 	{
-		return std::invoke(Tail, std::invoke(Head, std::forward<ArgType>(Arg)...));
+		return Invoke(Tail, Invoke(Head, std::forward<ArgType>(Arg)...));
 	}
 
 	template <class... ArgType>
-	constexpr decltype(auto) operator()(ArgType&&... Arg) const&
+	decltype(auto) operator()(ArgType&&... Arg) const&
 	{
-		return std::invoke(Tail, std::invoke(Head, std::forward<ArgType>(Arg)...));
+		return Invoke(Tail, Invoke(Head, std::forward<ArgType>(Arg)...));
 	}
 
 	template <class... ArgType>
-	constexpr decltype(auto) operator()(ArgType&&... Arg) &&
+	decltype(auto) operator()(ArgType&&... Arg) &&
 	{
-		return std::invoke(std::move(Tail), std::invoke(std::move(Head), std::forward<ArgType>(Arg)...));
+		return Invoke(std::move(Tail), Invoke(std::move(Head), std::forward<ArgType>(Arg)...));
 	}
 
 private:
@@ -127,7 +131,5 @@ struct FIdentityFunctor
 		return Forward<T>(Val);
 	}
 };
-
-static_assert(TCompose{FSum{}, FIdentityFunctor{}, FSum{}}(3, 4) == 7);
 
 }  // namespace Zkz

@@ -2,6 +2,7 @@
 
 #include "Misc/ScopeExit.h"
 #include "Misc/SlowTask.h"
+#include "Misc/StringOutputDevice.h"
 #include "Serialization/Csv/CsvParser.h"
 #include "UObject/Field.h"
 #include "UObject/TextProperty.h"

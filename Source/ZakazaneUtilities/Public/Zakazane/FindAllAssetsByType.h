@@ -6,7 +6,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ReturnIfMacros.h"
 
-namespace Zkz::Utilities
+namespace Zkz
 {
 
 /// Calls Func for each asset of given class (and its children).
@@ -75,4 +75,4 @@ void FindAllAssetsByType(ContainerType& Container)
 		});
 }
 
-}  // namespace Zkz::Utilities
+}  // namespace Zkz
