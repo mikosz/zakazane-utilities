@@ -7,6 +7,7 @@
 #include "Modules/ModuleManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Zakazane/ContinueIfMacros.h"
+#include "Zakazane/Enum.h"
 #include "Zakazane/Object.h"
 #include "Zakazane/ReturnIfMacros.h"
 #include "Zakazane/String.h"
@@ -73,13 +74,32 @@ FString ClampNotificationText(const FString& InText)
 }
 
 #endif
+
+static EMessageSeverity::Type GetMessageSeverity(const EZkzMessageSeverity Severity)
+{
+	switch (Severity)
+	{
+		case EZkzMessageSeverity::Error:
+			return EMessageSeverity::Error;
+		case EZkzMessageSeverity::PerformanceWarning:
+			return EMessageSeverity::PerformanceWarning;
+		case EZkzMessageSeverity::Warning:
+			return EMessageSeverity::Warning;
+		case EZkzMessageSeverity::Info:
+			return EMessageSeverity::Info;
+		default:
+			ensureAlwaysMsgf(false, TEXT("Invalid message severity: %s"), *Zkz::Enum::GetDisplayNameAsString(Severity));
+			return EMessageSeverity::Error;
+	}
+}
+
 }  // namespace Logging::Private
 
 void UZkzLogSubsystem::LogUserError(
 	const FLogCategoryBase& LogCategory,
 	const EMessageSeverity::Type Severity,
 	const FString& MessageStr,
-	const TArrayView<const UObject*> ContextObjects,
+	const TConstArrayView<const UObject*> ContextObjects,
 	const bool bTryPointToSourceObject)
 {
 #if WITH_EDITOR
@@ -249,7 +269,23 @@ FString UZkzLogSubsystem::ConstructNotificationErrorString()
 	FString Result = StringBuilder.ToString();
 	return Result;
 }
+
 #endif
+
+DEFINE_LOG_CATEGORY(LogZkzBlueprints)
+
+void UZkzLoggingBlueprintLibrary::LogUserError(
+	const EZkzMessageSeverity Severity,
+	const FString& MessageStr,
+	const UObject* const ContextObject,
+	const bool bTryPointToSourceObject)
+{
+#if !NO_LOGGING
+	using namespace Logging::Private;
+	Zkz::LogUserError(
+		LogZkzBlueprints, GetMessageSeverity(Severity), MessageStr, ContextObject, bTryPointToSourceObject);
+#endif
+}
 
 namespace Zkz
 {
@@ -314,11 +350,11 @@ void LogUserError(
 	const FLogCategoryBase& LogCategory,
 	const EMessageSeverity::Type Severity,
 	const FString& MessageStr,
-	const UObject* ContextObject,
+	const UObject* const ContextObject,
 	const bool bTryPointToSourceObject)
 {
 	LogUserError(
-		LogCategory, Severity, MessageStr, TArrayView<const UObject*>{&ContextObject, 1}, bTryPointToSourceObject);
+		LogCategory, Severity, MessageStr, TConstArrayView<const UObject*>{&ContextObject, 1}, bTryPointToSourceObject);
 }
 
 #if NO_LOGGING
@@ -336,7 +372,7 @@ void LogUserError(
 	const FLogCategoryBase& LogCategory,
 	const EMessageSeverity::Type Severity,
 	const FString& MessageStr,
-	const TArrayView<const UObject*> ContextObjects,
+	const TConstArrayView<const UObject*> ContextObjects,
 	const bool bTryPointToSourceObject)
 {
 	ZKZ_RETURN_IF_INVALID(GEngine);

@@ -16,6 +16,18 @@ TDebugData<InJobIdTraitsType>::FJobHistoryEntry::FJobHistoryEntry(JobIdType InJo
 }
 
 template <CJobIdTraits InJobIdTraitsType>
+void TDebugData<InJobIdTraitsType>::OnJobCreated(JobIdReferenceType JobId)
+{
+	using namespace Private;
+
+	FJobHistoryQueueEntry JobEntry = MakeJobHistoryEntry(JobId);
+	JobEntry.Event.template Emplace<FJobEvent_JobCreated>();
+
+	JobHistoryQueue.EmplaceLast(MoveTemp(JobEntry));
+	TrimHistoryQueue();
+}
+
+template <CJobIdTraits InJobIdTraitsType>
 void TDebugData<InJobIdTraitsType>::OnJobEnqueued(
 	JobIdReferenceType JobId, JobIdReferenceType Parent, TConstArrayView<JobIdReferenceType> Predecessors)
 {
@@ -24,7 +36,6 @@ void TDebugData<InJobIdTraitsType>::OnJobEnqueued(
 	FJobHistoryQueueEntry JobEntry = MakeJobHistoryEntry(JobId);
 
 	auto& Event = VariantEmplace_GetRef<FJobEvent_JobEnqueued>(JobEntry.Event);
-	Event.Parent = JobIdTraitsType::FromReference(Parent);
 	Algo::Transform(Predecessors, Event.Predecessors, &JobIdTraitsType::FromReference);
 
 	JobHistoryQueue.EmplaceLast(MoveTemp(JobEntry));
@@ -140,6 +151,12 @@ void TDebugData<InJobIdTraitsType>::UpdateJobHistoryEntry(
 		[&JobHistoryEntry, &QueueEntry]<class EventType>(EventType&& V)
 		{ UpdateJobHistoryEntry(JobHistoryEntry, QueueEntry, MoveTemp(V)); },
 		MoveTemp(QueueEntry.Event));
+}
+
+template <CJobIdTraits InJobIdTraitsType>
+void TDebugData<InJobIdTraitsType>::UpdateJobHistoryEntry(
+	FJobHistoryEntry& JobHistoryEntry, FJobHistoryQueueEntry QueueEntry, FJobEvent_JobCreated Event)
+{
 }
 
 template <CJobIdTraits InJobIdTraitsType>

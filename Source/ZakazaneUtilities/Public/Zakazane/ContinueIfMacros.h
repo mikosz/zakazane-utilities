@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Zakazane/Pointer.h"
+
 /// Macro simplifying adding verification code to functions. Automatically continues the current loop if expression is true.
 /// E.g.:
 ///
@@ -65,14 +67,14 @@
 /// }
 /// @endcode
 #define ZKZ_CONTINUE_IF_INVALID(UObjectPtr) \
-	if (!::IsValid(UObjectPtr))             \
+	if (!Zkz::Pointer::IsValid(UObjectPtr))             \
 	{                                       \
 		continue;                           \
 	}
 
 /// Same as ZKZ_CONTINUE_IF_INVALID but also ensure-s pointer is valid.
 #define ZKZ_CONTINUE_IF_INVALID_ENSURE(UObjectPtr) \
-	if (!ensure(::IsValid(UObjectPtr)))            \
+	if (!ensure(Zkz::Pointer::IsValid(UObjectPtr)))            \
 	{                                              \
 		continue;                                  \
 	}
@@ -80,14 +82,14 @@
 /// Same as ZKZ_CONTINUE_IF_INVALID but also ensureMsgf-s pointer is valid.
 /// Message format arguments are currently not supported.
 #define ZKZ_CONTINUE_IF_INVALID_ENSUREMSGF(UObjectPtr, Msg) \
-	if (!ensureMsgf(::IsValid(UObjectPtr), TEXT(#Msg)))     \
+	if (!ensureMsgf(Zkz::Pointer::IsValid(UObjectPtr), TEXT(#Msg)))     \
 	{                                                       \
 		continue;                                           \
 	}
 
 /// Same as ZKZ_CONTINUE_IF_INVALID but also ensureAlways-s pointer is valid.
 #define ZKZ_CONTINUE_IF_INVALID_ENSUREALWAYS(UObjectPtr) \
-	if (!ensureAlways(::IsValid(UObjectPtr)))            \
+	if (!ensureAlways(Zkz::Pointer::IsValid(UObjectPtr)))            \
 	{                                                    \
 		continue;                                        \
 	}
@@ -95,7 +97,7 @@
 /// Same as ZKZ_CONTINUE_IF_INVALID but also ensureAlwaysMsgf-s pointer is valid.
 /// Message format arguments are currently not supported.
 #define ZKZ_CONTINUE_IF_INVALID_ENSUREALWAYSMSGF(UObjectPtr, Msg) \
-	if (!ensureAlwaysMsgf(::IsValid(UObjectPtr), TEXT(#Msg)))     \
+	if (!ensureAlwaysMsgf(Zkz::Pointer::IsValid(UObjectPtr), TEXT(#Msg)))     \
 	{                                                             \
 		continue;                                                 \
 	}

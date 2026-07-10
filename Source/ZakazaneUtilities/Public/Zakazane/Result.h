@@ -634,7 +634,17 @@ constexpr TResult<ValueType, InnerErrorType> CollapseNestedResults(
 	{                                                                                                              \
 		if (auto&& Reference_ZKZ_RETURN_ERROR_IF_LOCAL = (Result); Reference_ZKZ_RETURN_ERROR_IF_LOCAL.HasError()) \
 		{                                                                                                          \
-			return Err(MoveTempIfPossible(Reference_ZKZ_RETURN_ERROR_IF_LOCAL).GetError());                        \
+			return Zkz::Err(MoveTempIfPossible(Reference_ZKZ_RETURN_ERROR_IF_LOCAL).GetError());                   \
+		}                                                                                                          \
+	} while (false)
+
+/// Same as ZKZ_PROPAGATE_IF_ERROR but also accepts a projection function as argument.
+#define ZKZ_PROPAGATE_IF_ERROR_PROJ(Result, Proj)                                                                  \
+	do                                                                                                             \
+	{                                                                                                              \
+		if (auto&& Reference_ZKZ_RETURN_ERROR_IF_LOCAL = (Result); Reference_ZKZ_RETURN_ERROR_IF_LOCAL.HasError()) \
+		{                                                                                                          \
+			return Zkz::Err(::Invoke(Proj, MoveTempIfPossible(Reference_ZKZ_RETURN_ERROR_IF_LOCAL).GetError()));   \
 		}                                                                                                          \
 	} while (false)
 

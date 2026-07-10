@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 #include "GameplayTagContainer.h"
+#include "ReturnIfMacros.h"
 #include "Templates/Invoke.h"
 
 struct FGameplayTag;
@@ -92,6 +93,10 @@ bool ContainsSimilar(
 	int32 DistPerChar = 1,
 	int32 DistPerNum = 3);
 
+template <class StringType>
+bool CompareIgnoreCase(
+	TStringView<typename StringType::ElementType> Lhs, TStringView<typename StringType::ElementType> Rhs);
+
 }  // namespace Zkz::String
 
 // -- template implementations
@@ -161,6 +166,8 @@ bool ContainsSimilar(
 {
 	const int32 HaystackLen = InHaystack.Len();
 	const int32 NeedleLen = InNeedle.Len();
+	ZKZ_RETURN_IF(NeedleLen > HaystackLen, false);
+
 	const int32 SearchEnd = FMath::Max(HaystackLen - NeedleLen, 0);
 	for (int32 SearchIdx = 0; SearchIdx <= SearchEnd; SearchIdx++)
 	{
@@ -183,6 +190,13 @@ bool ContainsSimilar(
 		}
 	}
 	return false;
+}
+
+template <class StringType>
+bool CompareIgnoreCase(
+	TStringView<typename StringType::ElementType> Lhs, TStringView<typename StringType::ElementType> Rhs)
+{
+	return Lhs.Compare(Rhs, ESearchCase::IgnoreCase) == 0;
 }
 
 }  // namespace Zkz::String

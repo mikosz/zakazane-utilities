@@ -1,5 +1,6 @@
 #include "Zakazane/MultisourceValue.h"
 #include "Zakazane/Test/Test.h"
+#include "Zakazane/Test/ZkzTestObject.h"
 
 namespace Zkz::Test
 {
@@ -89,6 +90,66 @@ ZKZ_ADD_TEST(VotersYieldNegation)
 	TestEqual("1 voter again yields true", DefaultFalse.GetValue(), true);
 	DefaultFalse.PopValue(&Voter2);
 	TestEqual("0 voters yields false", DefaultFalse.GetValue(), false);
+}
+
+ZKZ_ADD_TEST(UObjectPtrVoidPtrAreCompared)
+{
+	const auto* const Obj1 = NewObject<UZkzTestObject>();
+	const auto* const VPtr1 = static_cast<const void*>(Obj1);
+	const auto* const Obj2 = NewObject<UZkzTestObject>();
+	const auto* const VPtr2 = static_cast<const void*>(Obj2);
+	check(IsValid(Obj1) && IsValid(Obj2) && Obj1 != Obj2);
+
+	TestNotEqual("Obj1 != Obj2", FMultisourceIdType{Obj1}, FMultisourceIdType{Obj2});
+
+	TestEqual("Obj1 == VPtr1", FMultisourceIdType{Obj1}, FMultisourceIdType{VPtr1});
+	TestEqual(
+		"Hash values: Obj1 == VPtr1", GetTypeHash(FMultisourceIdType{Obj1}), GetTypeHash(FMultisourceIdType{VPtr1}));
+	TestEqual("VPtr1 == Obj1", FMultisourceIdType{VPtr1}, FMultisourceIdType{Obj1});
+	TestEqual(
+		"Hash values: VPtr1 == Obj1", GetTypeHash(FMultisourceIdType{VPtr1}), GetTypeHash(FMultisourceIdType{Obj1}));
+	TestNotEqual("Obj1 != VPtr2", FMultisourceIdType{Obj1}, FMultisourceIdType{VPtr2});
+	TestNotEqual(
+		"Hash values: Obj1 != VPtr2", GetTypeHash(FMultisourceIdType{Obj1}), GetTypeHash(FMultisourceIdType{VPtr2}));
+	TestNotEqual("VPtr2 != Obj1", FMultisourceIdType{VPtr2}, FMultisourceIdType{Obj1});
+	TestNotEqual(
+		"Hash values: VPtr2 != Obj1", GetTypeHash(FMultisourceIdType{VPtr2}), GetTypeHash(FMultisourceIdType{Obj1}));
+
+	FIfAnyMultisourceValue DefaultTrue{true};
+
+	DefaultTrue.PushValue(Obj1);
+	TestEqual("Push UObject*, pop void* - push", DefaultTrue.GetValue(), false);
+	DefaultTrue.PopValue(VPtr1);
+	TestEqual("Push UObject*, pop void* - pop", DefaultTrue.GetValue(), true);
+
+	DefaultTrue.PushValue(VPtr1);
+	TestEqual("Push void*, pop UObject* - push", DefaultTrue.GetValue(), false);
+	DefaultTrue.PopValue(Obj1);
+	TestEqual("Push void*, pop UObject* - pop", DefaultTrue.GetValue(), true);
+
+	DefaultTrue.PushValue(Obj1);
+	DefaultTrue.PushValue(VPtr2);
+	TestEqual("Push UObject* + void* - push", DefaultTrue.GetValue(), false);
+
+	DefaultTrue.PopValue(Obj2);
+	TestEqual("Push UObject* + void* - pop 2", DefaultTrue.GetValue(), false);
+
+	DefaultTrue.PopValue(VPtr1);
+	TestEqual("Push UObject* + void* - pop 1", DefaultTrue.GetValue(), true);
+}
+
+ZKZ_ADD_TEST(UObjectPtrFNameAreNotCompared)
+{
+	const auto* const Obj1 = NewObject<UZkzTestObject>();
+	check(IsValid(Obj1));
+	const auto Name = Obj1->GetFName();
+
+	TestNotEqual("Obj1 != Name", FMultisourceIdType{Obj1}, FMultisourceIdType{Name});
+	TestNotEqual(
+		"Hash values: Obj1 != Name", GetTypeHash(FMultisourceIdType{Obj1}), GetTypeHash(FMultisourceIdType{Name}));
+	TestNotEqual("Name != Obj1", FMultisourceIdType{Name}, FMultisourceIdType{Obj1});
+	TestNotEqual(
+		"Hash values: Name != Obj1", GetTypeHash(FMultisourceIdType{Name}), GetTypeHash(FMultisourceIdType{Obj1}));
 }
 
 ZKZ_END_AUTOMATION_TEST(FIfAnyMultisourceValueTest)

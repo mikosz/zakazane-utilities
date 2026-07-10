@@ -2,10 +2,33 @@
 
 #include "Zakazane/ExecutionGraph/Private/JobState.h"
 
+#include "Zakazane/RAII.h"
+
 namespace Zkz::ExecutionGraph::Private
 {
 namespace JobStateImpl
 {
+
+FScopedExecution FulfillAtCallSite(TScopedPromise<void> Promise)
+{
+	return FScopedExecution{[Promise = MoveTemp(Promise)]() mutable { Promise.EmplaceValue(); }};
+}
+
+TArray<FScopedExecution> FulfillAllAtCallSite(const TArrayView<TScopedPromise<void>> Promises)
+{
+	auto Result = TArray<FScopedExecution>{};
+	Result.Reserve(Promises.Num());
+
+	// #TODO #Algo: Zkz::Transform should work here, but it won't because elements must
+	// be moved. Figure it out.
+
+	for (auto& Promise : Promises)
+	{
+		Result.Emplace(FulfillAtCallSite(MoveTemp(Promise)));
+	}
+
+	return Result;
+}
 
 // -- AddSuccessor
 
@@ -92,25 +115,30 @@ TOptional<FJobState> DefineTask(
 
 // ExecuteStage
 
-TPair<TOptional<FJobState>, TArray<FJobExecutionPromise>> ExecuteStage(const FJobState_Base& JobState)
+TPair<TOptional<FJobState>, TArray<FScopedExecution>> ExecuteStage(const FJobState_Base& JobState)
 {
 	checkf(false, TEXT("Invalid state transition"));
-	return {NullOpt, TArray<FJobExecutionPromise>{}};
+	return {NullOpt, TArray<FScopedExecution>{}};
 }
 
-TPair<TOptional<FJobState>, TArray<FJobExecutionPromise>> ExecuteStage(FJobState_DefinedStage& JobState_DefinedStage)
+TPair<TOptional<FJobState>, TArray<FScopedExecution>> ExecuteStage(FJobState_DefinedStage& JobState_DefinedStage)
 {
-	TArray<FJobExecutionPromise> JobExecutionPromises = MoveTemp(JobState_DefinedStage.JobExecutionPromises);
-
 	if (!JobState_DefinedStage.IsCompleted())
 	{
 		FJobState_ExecutingStage JobState_ExecutingStage{MoveTemp(JobState_DefinedStage)};
-		return {MakeJobState(MoveTemp(JobState_ExecutingStage)), MoveTemp(JobExecutionPromises)};
+
+		return {
+			MakeJobState(MoveTemp(JobState_ExecutingStage)),
+			FulfillAllAtCallSite(MoveTemp(JobState_DefinedStage.JobExecutionPromises))};
 	}
 	else
 	{
+		check(JobState_DefinedStage.JobExecutionPromises.IsEmpty());
+
 		FJobState_Completed JobState_CompletedStage;
-		return {MakeJobState(MoveTemp(JobState_CompletedStage)), MoveTemp(JobExecutionPromises)};
+		return {
+			MakeJobState(MoveTemp(JobState_CompletedStage)),
+			FulfillAllAtCallSite(MoveTemp(JobState_DefinedStage.JobCompletionPromises))};
 	}
 }
 
@@ -133,19 +161,19 @@ TPair<TOptional<FJobState>, FTaskExecutionPromise> ExecuteTask(FJobState_Defined
 
 // OnTaskCompleted
 
-TPair<TOptional<FJobState>, FJobCompletionPromises> OnTaskCompleted(const FJobState_Base& JobState)
+TPair<TOptional<FJobState>, TArray<FScopedExecution>> OnTaskCompleted(const FJobState_Base& JobState)
 {
 	checkf(false, TEXT("Invalid state transition"));
-	return {NullOpt, FJobCompletionPromises{}};
+	return {NullOpt, TArray<FScopedExecution>{}};
 }
 
-TPair<TOptional<FJobState>, FJobCompletionPromises> OnTaskCompleted(FJobState_ExecutingTask& JobState_ExecutingTask)
+TPair<TOptional<FJobState>, TArray<FScopedExecution>> OnTaskCompleted(FJobState_ExecutingTask& JobState_ExecutingTask)
 {
 	auto JobCompletionPromises = MoveTemp(JobState_ExecutingTask.JobCompletionPromises);
 
 	FJobState_Completed JobState_Completed;
 
-	return {MakeJobState(MoveTemp(JobState_Completed)), MoveTemp(JobCompletionPromises)};
+	return {MakeJobState(MoveTemp(JobState_Completed)), FulfillAllAtCallSite(MoveTemp(JobCompletionPromises))};
 }
 
 // OnChildJobTracked
@@ -199,25 +227,25 @@ TPair<TOptional<FJobState>, TResult<void, FError>> OnChildJobTracked(FJobState_C
 
 // OnChildJobCompleted
 
-TPair<TOptional<FJobState>, FJobCompletionPromises> OnChildJobCompleted(const FJobState_Base& JobState)
+TPair<TOptional<FJobState>, TArray<FScopedExecution>> OnChildJobCompleted(const FJobState_Base& JobState)
 {
 	checkf(false, TEXT("Invalid state transition"));
-	return {NullOpt, FJobCompletionPromises{}};
+	return {NullOpt, TArray<FScopedExecution>{}};
 }
 
-TPair<TOptional<FJobState>, FJobCompletionPromises> OnChildJobCompleted(
+TPair<TOptional<FJobState>, TArray<FScopedExecution>> OnChildJobCompleted(
 	FJobState_ExecutingStage& JobState_ExecutingStage)
 {
 	checkf(JobState_ExecutingStage.NumTrackedJobs > 0, TEXT("Internal error"));
 	--JobState_ExecutingStage.NumTrackedJobs;
 
-	ZKZ_RETURN_IF(!JobState_ExecutingStage.IsCompleted(), {NullOpt, FJobCompletionPromises{}});
+	ZKZ_RETURN_IF(!JobState_ExecutingStage.IsCompleted(), {NullOpt, TArray<FScopedExecution>{}});
 
 	auto JobCompletionPromises = MoveTemp(JobState_ExecutingStage.JobCompletionPromises);
 
 	FJobState_Completed JobState_Completed;
 
-	return {MakeJobState(MoveTemp(JobState_Completed)), MoveTemp(JobCompletionPromises)};
+	return {MakeJobState(MoveTemp(JobState_Completed)), FulfillAllAtCallSite(MoveTemp(JobCompletionPromises))};
 }
 
 // EnqueueJobExecution
@@ -247,22 +275,22 @@ TPair<TOptional<FJobState>, FFutureJobExecution> EnqueueJobExecution(
 
 // CloseStage
 
-TPair<TOptional<FJobState>, TResult<FJobCompletionPromises, FError>> CloseStage(const FJobState_Base& JobState)
+TPair<TOptional<FJobState>, TResult<TArray<FScopedExecution>, FError>> CloseStage(const FJobState_Base& JobState)
 {
 	checkf(false, TEXT("Invalid state transition"));
 	return {NullOpt, Err(FError{TInPlaceType<FInvalidOperationError>{}})};
 }
 
-TPair<TOptional<FJobState>, TResult<FJobCompletionPromises, FError>> CloseStage(
+TPair<TOptional<FJobState>, TResult<TArray<FScopedExecution>, FError>> CloseStage(
 	FJobState_PendingStage_Base& JobState_PendingStage)
 {
 	ZKZ_RETURN_IF(JobState_PendingStage.bClosed, {NullOpt, Err(FError{TInPlaceType<FStageAlreadyClosedError>{}})});
 
 	JobState_PendingStage.bClosed = true;
-	return {NullOpt, Ok(FJobCompletionPromises{})};
+	return {NullOpt, Ok(TArray<FScopedExecution>{})};
 }
 
-TPair<TOptional<FJobState>, TResult<FJobCompletionPromises, FError>> CloseStage(
+TPair<TOptional<FJobState>, TResult<TArray<FScopedExecution>, FError>> CloseStage(
 	FJobState_ExecutingStage& JobState_ExecutingStage)
 {
 	ZKZ_RETURN_IF(JobState_ExecutingStage.bClosed, {NullOpt, Err(FError{TInPlaceType<FStageAlreadyClosedError>{}})});
@@ -274,15 +302,69 @@ TPair<TOptional<FJobState>, TResult<FJobCompletionPromises, FError>> CloseStage(
 		auto JobCompletionPromises = MoveTemp(JobState_ExecutingStage.JobCompletionPromises);
 
 		FJobState_Completed JobState_Completed;
-		return {MakeJobState(MoveTemp(JobState_Completed)), Ok(MoveTemp(JobCompletionPromises))};
+		return {MakeJobState(MoveTemp(JobState_Completed)), Ok(FulfillAllAtCallSite(MoveTemp(JobCompletionPromises)))};
 	}
 
-	return {NullOpt, Ok(FJobCompletionPromises{})};
+	return {NullOpt, Ok(TArray<FScopedExecution>{})};
 }
 
-TPair<TOptional<FJobState>, TResult<FJobCompletionPromises, FError>> CloseStage(FJobState_Completed& JobState_Completed)
+TPair<TOptional<FJobState>, TResult<TArray<FScopedExecution>, FError>> CloseStage(
+	FJobState_Completed& JobState_Completed)
 {
 	return {NullOpt, Err(FError{TInPlaceType<FStageAlreadyClosedError>{}})};
+}
+
+// SetPayload
+
+TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
+	FJobState_Incomplete_Base& JobState_Incomplete, TUniquePtr<void> InPayload)
+{
+	if (JobState_Incomplete.Payload != nullptr)
+	{
+		return {NullOpt, Err(FError{TInPlaceType<FPayloadAlreadySet>{}})};
+	}
+
+	JobState_Incomplete.Payload = MoveTemp(InPayload);
+	return {NullOpt, Ok()};
+}
+
+TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
+	FJobState_Default& JobState_Default, TUniquePtr<void> InPayload)
+{
+	FJobState_Stub JobState_Stub;
+	JobState_Stub.Payload = MoveTemp(InPayload);
+
+	return {MakeJobState(MoveTemp(JobState_Stub)), Ok()};
+}
+
+TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
+	FJobState_ExecutingStage& JobState_ExecutingStage, TUniquePtr<void> InPayload)
+{
+	return {NullOpt, Err(FError{TInPlaceType<FJobStateIsNotAllowedAPayload>{}})};
+}
+
+TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
+	FJobState_ExecutingTask& JobState_ExecutingTask, TUniquePtr<void> InPayload)
+{
+	return {NullOpt, Err(FError{TInPlaceType<FJobStateIsNotAllowedAPayload>{}})};
+}
+
+TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
+	FJobState_Completed& JobState_Completed, TUniquePtr<void> InPayload)
+{
+	return {NullOpt, Err(FError{TInPlaceType<FJobStateIsNotAllowedAPayload>{}})};
+}
+
+// GetPayload
+
+TResult<void*, FError> GetPayload(const FJobState_Base& JobState_Base)
+{
+	return Err(FError{TInPlaceType<FJobStateIsNotAllowedAPayload>{}});
+}
+
+TResult<void*, FError> GetPayload(const FJobState_Incomplete_Base& JobState_Incomplete)
+{
+	return Ok(JobState_Incomplete.Payload.Get());
 }
 
 }  // namespace JobStateImpl
@@ -367,7 +449,7 @@ TOptional<FJobState> DefineTask(
 		JobState);
 }
 
-TPair<TOptional<FJobState>, TArray<FJobExecutionPromise>> ExecuteStage(FJobState& JobState)
+TPair<TOptional<FJobState>, TArray<FScopedExecution>> ExecuteStage(FJobState& JobState)
 {
 	return Visit([&](auto& V) mutable { return JobStateImpl::ExecuteStage(V); }, JobState);
 }
@@ -377,7 +459,7 @@ TPair<TOptional<FJobState>, FTaskExecutionPromise> ExecuteTask(FJobState& JobSta
 	return Visit([&](auto& V) mutable { return JobStateImpl::ExecuteTask(V); }, JobState);
 }
 
-TPair<TOptional<FJobState>, FJobCompletionPromises> OnTaskCompleted(FJobState& JobState)
+TPair<TOptional<FJobState>, TArray<FScopedExecution>> OnTaskCompleted(FJobState& JobState)
 {
 	return Visit([&](auto& V) mutable { return JobStateImpl::OnTaskCompleted(V); }, JobState);
 }
@@ -387,7 +469,7 @@ TPair<TOptional<FJobState>, TResult<void, FError>> OnChildJobTracked(FJobState& 
 	return Visit([&](auto& V) mutable { return JobStateImpl::OnChildJobTracked(V); }, JobState);
 }
 
-TPair<TOptional<FJobState>, FJobCompletionPromises> OnChildJobCompleted(FJobState& JobState)
+TPair<TOptional<FJobState>, TArray<FScopedExecution>> OnChildJobCompleted(FJobState& JobState)
 {
 	return Visit([&](auto& V) mutable { return JobStateImpl::OnChildJobCompleted(V); }, JobState);
 }
@@ -397,9 +479,19 @@ TPair<TOptional<FJobState>, FFutureJobExecution> EnqueueJobExecution(FJobState& 
 	return Visit([&](auto& V) mutable { return JobStateImpl::EnqueueJobExecution(V); }, JobState);
 }
 
-TPair<TOptional<FJobState>, TResult<FJobCompletionPromises, FError>> CloseStage(FJobState& JobState)
+TPair<TOptional<FJobState>, TResult<TArray<FScopedExecution>, FError>> CloseStage(FJobState& JobState)
 {
 	return Visit([](auto& V) { return JobStateImpl::CloseStage(V); }, JobState);
+}
+
+TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(FJobState& JobState, TUniquePtr<void> InPayload)
+{
+	return Visit([&](auto& V) { return JobStateImpl::SetPayload(V, MoveTemp(InPayload)); }, JobState);
+}
+
+TResult<void*, FError> GetPayload(const FJobState& JobState)
+{
+	return Visit([&](auto& V) { return JobStateImpl::GetPayload(V); }, JobState);
 }
 
 }  // namespace Zkz::ExecutionGraph::Private

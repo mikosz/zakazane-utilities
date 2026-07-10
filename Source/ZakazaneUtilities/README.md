@@ -6,6 +6,7 @@
 1. [Future.h](#futureh) - utilities for working with Unreal's futures
 1. [Logging.h](#loggingh) - logging utilities
 1. [Pointer.h](#pointerh) - utilities for working with pointers
+1. [RAII.h](#raiih) - utilities for creating RAII objects
 1. [Budgeting](#budgeting) - set of classes implementing runing tasks within an allotted time budget
 1. [Execution Graph](#execution-graph) - set of classes implementing task scheduling with dependencies
 
@@ -227,6 +228,45 @@ Note that you can provide your own implementations for `TLifetimeTrackingPtrTrai
 
 `CLifetimeTrackingPtr` is a concept for all types that implement `TLifetimeTrackingPtrTraits`.
 
+## RAII.h
+
+RAII (Resource Acquisition Is Initialization) is a pattern for managing c++ resources via
+constructors and destructors. `std::unique_ptr` is a good example of this pattern – it takes
+ownership of a pointer, automatically frees the memory when the object goes out of scope,
+and passes ownership via move construction / move assignment.
+
+### FScopedExecution
+
+Calls the given function when exiting the scope, supports move semantics. An example use can
+be seen in the Execution Graph. We return an array of promises from a function in a job state.
+The promises cannot be immediately fulfilled because that would break the contract where all
+actions are initiated in the scheduler. Promises can be returned directly, but then the execution graph
+code needs to remember to fulfill them. Instead, `FScopedExecution` bound to fulfilling the promises
+are returned, thus doing this automatically at the end of the scope.
+
+### TScopedAssignment
+
+Changes the value of a variable for the duration of the scope. Note that any external changes
+are not handled, so in this example
+
+```c++
+int I = 0;
+// I == 0
+
+{
+	TScopedAssignment<int> ScopedValue{I, 1};
+	// I == 1
+	
+	I = 3; // may happen in another function or on another thread...
+	// I == 3
+}
+
+// I == 0
+```
+
+`I` is restored to 0 even though other code changed the value to 3. To handle values that can be
+changed in multiple places, consider using `TMultisourceValue`.
+
 ## Result.h
 
 Similar to Rust's Result type. Combines a value and error type into a single type. Data is stored as a union,
@@ -372,6 +412,15 @@ A task is a job that performs user-defined work. Communication between the defin
 performed via `FFutureTaskExecution`. The user enqueues a task, gets a future task execution in return,
 calls `IfNotCanceled` to define what work should be done. The future contains a `FJobCompletionPromise`
 which the user-code must fulfill to notify the scheduler that the task is complete.
+
+## Job Payloads
+
+Jobs can carry a payload. This is useful if you need to handle some data in the task, which will
+also be available from the outside. Payloads can be added using EmplacePayload (only for incomplete
+jobs), or via the Payload parameter of `TScheduler::EnqueueTask`. Payload can be accessed from the
+outside using `TScheduler::WithJob` and `FJob::GetPayload`. Note that the payload type is `void*`,
+so it's up to the user to ensure that they correctly unpack whatever is packed into it. Task payload
+is passed into its future execution via the `FTaskArgs` struct.
 
 ## Order of execution
 

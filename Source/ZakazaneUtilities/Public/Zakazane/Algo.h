@@ -50,7 +50,7 @@ concept CHasReserve = requires(RangeType& Range) { Range.Reserve(); };
 /// Does what Algo::Transform does, but returns a new container instead of taking an output parameter.
 /// @tparam OutContainerType - result container type
 template <class OutContainerType, class InContainerType, class FunctionType, class... AdditionalArgTypes>
-	requires(CInvokable<FunctionType, const InContainerType::ElementType&, AdditionalArgTypes...>)
+	requires(CInvokable<FunctionType, const typename InContainerType::ElementType&, AdditionalArgTypes...>)
 OutContainerType TransformTo(
 	const InContainerType& InContainer, FunctionType&& F, AdditionalArgTypes&&... AdditionalArgs)
 {
@@ -63,7 +63,7 @@ OutContainerType TransformTo(
 
 	for (const auto& Value : InContainer)
 	{
-		Result.Emplace(Invoke(F, Value, Forward<AdditionalArgTypes>(AdditionalArgs)...));
+		Result.Emplace(::Invoke(F, Value, Forward<AdditionalArgTypes>(AdditionalArgs)...));
 	}
 
 	return Result;
@@ -71,7 +71,7 @@ OutContainerType TransformTo(
 
 /// Does what Algo::Transform does, but returns a new array instead of taking an output parameter.
 template <class InContainerType, class FunctionType, class... AdditionalArgTypes>
-	requires(CInvokable<FunctionType, const InContainerType::ElementType&, AdditionalArgTypes...>)
+	requires(CInvokable<FunctionType, const typename InContainerType::ElementType&, AdditionalArgTypes...>)
 auto Transform(const InContainerType& InContainer, FunctionType&& F, AdditionalArgTypes&&... AdditionalArgs)
 {
 	using TransformedType = decltype(::Invoke(
@@ -89,8 +89,8 @@ template <
 	class PredicateType,
 	class FunctionType,
 	class... AdditionalArgTypes>
-	requires(CInvokable<FunctionType, const InContainerType::ElementType&, AdditionalArgTypes...>)
-OutContainerType TransformIf(
+	requires(CInvokable<FunctionType, const typename InContainerType::ElementType&, AdditionalArgTypes...>)
+OutContainerType TransformToIf(
 	const InContainerType& InContainer, PredicateType&& P, FunctionType&& F, AdditionalArgTypes&&... AdditionalArgs)
 {
 	OutContainerType Result;
@@ -103,7 +103,7 @@ OutContainerType TransformIf(
 	// Re-implements Algo::TransformIf adding support for additional arguments
 	for (const auto& Value : InContainer)
 	{
-		if (Invoke(P, Value))
+		if (::Invoke(P, Value))
 		{
 			Result.Emplace(::Invoke(F, Value, Forward<AdditionalArgTypes>(AdditionalArgs)...));
 		}
@@ -114,14 +114,14 @@ OutContainerType TransformIf(
 
 /// Does what Algo::TransformIf does, but returns a new container instead of taking an output parameter.
 template <class InContainerType, class PredicateType, class FunctionType, class... AdditionalArgTypes>
-	requires(CInvokable<FunctionType, const InContainerType::ElementType&, AdditionalArgTypes...>)
+	requires(CInvokable<FunctionType, const typename InContainerType::ElementType&, AdditionalArgTypes...>)
 auto TransformIf(
 	const InContainerType& InContainer, PredicateType&& P, FunctionType&& F, AdditionalArgTypes&&... AdditionalArgs)
 {
 	using TransformedType = decltype(::Invoke(
 		F, std::declval<typename InContainerType::ElementType>(), std::declval<AdditionalArgTypes>()...));
 
-	return TransformIf<TransformedType>(
+	return TransformToIf<TArray<TransformedType>>(
 		InContainer,
 		Forward<PredicateType>(P),
 		Forward<FunctionType>(F),

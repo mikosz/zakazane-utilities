@@ -93,7 +93,7 @@ ZKZ_ADD_TEST(ScopedExecutionDoesntCallIfReleasedOrReset)
 		{
 			FScopedExecution ScopedExecution{FVoidCallable{CalledTimes}};
 
-			const TFunction<void()> Func = ScopedExecution.Release();
+			const TUniqueFunction<void()> Func = ScopedExecution.Release();
 			TestTrue("Release returns bound function", Func.IsSet());
 		}
 

@@ -7,6 +7,7 @@
 #include "Zakazane/ExecutionGraph/Error.h"
 #include "Zakazane/ExecutionGraph/ResultTypes.h"
 #include "Zakazane/ExecutionGraph/ZkzExecutionGraphJobStateId.h"
+#include "Zakazane/RAII.h"
 
 namespace Zkz::ExecutionGraph::Private
 {
@@ -57,6 +58,11 @@ struct ZAKAZANEUTILITIES_API FJobState_Incomplete_Base : FJobState_Base
 	/// Promises that this job will complete, to be fulfilled when task finishes or all stage tasks finish and stage
 	/// is closed.
 	FJobCompletionPromises JobCompletionPromises;
+
+	// #TODO #ExecutionGraph: Consider making payloads TUniquePtr<std::any>
+
+	/// Any additional user data associated with the job.
+	TUniquePtr<void> Payload;
 
 	FJobState_Incomplete_Base() = default;
 	FJobState_Incomplete_Base(FJobState_Incomplete_Base&& Other) = default;
@@ -208,19 +214,24 @@ ZAKAZANEUTILITIES_API TOptional<FJobState> DefineStage(
 ZAKAZANEUTILITIES_API TOptional<FJobState> DefineTask(
 	FJobState& JobState, FTaskExecutionPromise TaskExecutionPromise, FJobCompletionPromise TaskCompletionPromise);
 
-ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, TArray<FJobExecutionPromise>> ExecuteStage(FJobState& JobState);
+ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, TArray<FScopedExecution>> ExecuteStage(FJobState& JobState);
 
 ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, FTaskExecutionPromise> ExecuteTask(FJobState& JobState);
 
-ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, FJobCompletionPromises> OnTaskCompleted(FJobState& JobState);
+ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, TArray<FScopedExecution>> OnTaskCompleted(FJobState& JobState);
 
 ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, TResult<void, FError>> OnChildJobTracked(FJobState& JobState);
 
-ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, FJobCompletionPromises> OnChildJobCompleted(FJobState& JobState);
+ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, TArray<FScopedExecution>> OnChildJobCompleted(FJobState& JobState);
 
 ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, FFutureJobExecution> EnqueueJobExecution(FJobState& JobState);
 
-ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, TResult<FJobCompletionPromises, FError>> CloseStage(
+ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, TResult<TArray<FScopedExecution>, FError>> CloseStage(
 	FJobState& JobState);
+
+ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
+	FJobState& JobState, TUniquePtr<void> InPayload);
+
+ZAKAZANEUTILITIES_API TResult<void*, FError> GetPayload(const FJobState& JobState);
 
 }  // namespace Zkz::ExecutionGraph::Private

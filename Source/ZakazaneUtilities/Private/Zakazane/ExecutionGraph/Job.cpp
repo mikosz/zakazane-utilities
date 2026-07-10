@@ -25,11 +25,11 @@ void FJob::DefineTask(FTaskExecutionPromise TaskExecutionPromise, FJobCompletion
 	MaybeTransition(MoveTemp(OptNewState));
 }
 
-TArray<FJobExecutionPromise> FJob::ExecuteStage()
+TArray<FScopedExecution> FJob::ExecuteStage()
 {
-	auto [OptNewState, JobExecutionPromises] = Private::ExecuteStage(ActiveState);
+	auto [OptNewState, ExecuteAtCallSite] = Private::ExecuteStage(ActiveState);
 	MaybeTransition(MoveTemp(OptNewState));
-	return MoveTemp(JobExecutionPromises);
+	return MoveTemp(ExecuteAtCallSite);
 }
 
 FTaskExecutionPromise FJob::ExecuteTask()
@@ -39,7 +39,7 @@ FTaskExecutionPromise FJob::ExecuteTask()
 	return MoveTemp(TaskExecutionPromise);
 }
 
-FJobCompletionPromises FJob::OnTaskCompleted()
+TArray<FScopedExecution> FJob::OnTaskCompleted()
 {
 	auto [OptNewState, JobCompletionPromises] = Private::OnTaskCompleted(ActiveState);
 	MaybeTransition(MoveTemp(OptNewState));
@@ -60,14 +60,14 @@ TResult<void, FError> FJob::OnChildJobTracked()
 	return MoveTemp(Result);
 }
 
-FJobCompletionPromises FJob::OnChildJobCompleted()
+TArray<FScopedExecution> FJob::OnChildJobCompleted()
 {
 	auto [OptNewState, Result] = Private::OnChildJobCompleted(ActiveState);
 	MaybeTransition(MoveTemp(OptNewState));
 	return MoveTemp(Result);
 }
 
-TResult<FJobCompletionPromises, FError> FJob::CloseStage()
+TResult<TArray<FScopedExecution>, FError> FJob::CloseStage()
 {
 	auto [OptNewState, Result] = Private::CloseStage(ActiveState);
 	MaybeTransition(MoveTemp(OptNewState));
@@ -77,6 +77,18 @@ TResult<FJobCompletionPromises, FError> FJob::CloseStage()
 EZkzExecutionGraphJobStateId FJob::GetJobStateId() const
 {
 	return Visit([](const auto& JobState) { return JobState.Id; }, ActiveState);
+}
+
+TResult<void, FError> FJob::SetPayload(TUniquePtr<void> InPayload)
+{
+	auto [OptNewState, Result] = Private::SetPayload(ActiveState, MoveTemp(InPayload));
+	MaybeTransition(MoveTemp(OptNewState));
+	return MoveTemp(Result);
+}
+
+TResult<void*, FError> FJob::GetVoidPayload() const
+{
+	return Private::GetPayload(ActiveState);
 }
 
 void FJob::MaybeTransition(TOptional<Private::FJobState> OptNewState)

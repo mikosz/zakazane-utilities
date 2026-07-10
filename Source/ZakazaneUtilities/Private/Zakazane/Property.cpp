@@ -59,7 +59,9 @@ void EmitPropertyChangeNotifications(
 }
 
 void EmitPropertyChangeNotifications(
-	const FPropertyAccessChangeNotify& ChangeNotify, bool bIdenticalValue, const TFunction<void()>& ChangeFunction)
+	const FPropertyAccessChangeNotify& ChangeNotify,
+	const bool bIdenticalValue,
+	const TFunction<void()>& ChangeFunction)
 {
 #if WITH_EDITOR
 	PropertyAccessUtil::EmitPreChangeNotify(&ChangeNotify, bIdenticalValue);

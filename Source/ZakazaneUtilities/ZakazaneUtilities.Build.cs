@@ -25,7 +25,9 @@ public class ZakazaneUtilities : ModuleRules
 			{
 				"Slate",
 				"SlateCore",
-				"ImGui"
+				"ImGui",
+				"Json",
+				"JsonUtilities"
 			}
 		);
 

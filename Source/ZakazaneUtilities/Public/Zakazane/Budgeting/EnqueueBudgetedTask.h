@@ -28,8 +28,7 @@ TResult<void, ExecutionGraph::FError> EnqueueBudgetedTask(
 
 	IfNotCanceled(
 		MoveTemp(EnqueueTaskResult).GetValue(),
-		[BudgetPtr = MoveTemp(BudgetPtr),
-		 Task = MoveTemp(Task)](ExecutionGraph::FJobCompletionPromise JobCompletionPromise) mutable
+		[BudgetPtr = MoveTemp(BudgetPtr), Task = MoveTemp(Task)](ExecutionGraph::FTaskArgs TaskArgs) mutable
 		{
 			auto* const BudgetRawPtr = Pointer::Get(BudgetPtr);
 
@@ -37,7 +36,8 @@ TResult<void, ExecutionGraph::FError> EnqueueBudgetedTask(
 
 			// TFunction is required to be copyable, so need to make promise shared, unfortunately.
 			auto SharedJobCompletionPromise =
-				MakeShared<ExecutionGraph::FJobCompletionPromise>(MoveTemp(JobCompletionPromise));
+				MakeShared<ExecutionGraph::FJobCompletionPromise>(MoveTemp(TaskArgs.CompletionPromise));
+			ensureAlwaysMsgf(TaskArgs.Payload == nullptr, TEXT("Budget does not support tasks with payload"));
 
 			BudgetRawPtr->EnqueueTask(
 				[SharedJobCompletionPromise = MoveTemp(SharedJobCompletionPromise), Task = MoveTemp(Task)]() mutable

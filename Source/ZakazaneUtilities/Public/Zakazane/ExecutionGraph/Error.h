@@ -38,12 +38,24 @@ struct ZAKAZANEUTILITIES_API FCircularDependencyError
 	FString ToString() const;
 };
 
+struct FJobStateIsNotAllowedAPayload
+{
+	static FString ToString();
+};
+
+struct FPayloadAlreadySet
+{
+	static FString ToString();
+};
+
 using FError = TVariant<
 	FPredecessorsDontHaveSameParent,
 	FAddedJobToClosedStageError,
 	FStageAlreadyClosedError,
 	FCircularDependencyError,
-	FInvalidOperationError>;
+	FInvalidOperationError,
+	FJobStateIsNotAllowedAPayload,
+	FPayloadAlreadySet>;
 
 template <class VariantType, class... ArgTypes>
 FError MakeError(ArgTypes&&... Args)

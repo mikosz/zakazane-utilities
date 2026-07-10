@@ -39,6 +39,8 @@ public:
 
 	using FJobHistoryEntriesById = TMap<JobIdType, FJobHistoryEntry>;
 
+	void OnJobCreated(JobIdReferenceType JobId);
+
 	void OnJobEnqueued(
 		JobIdReferenceType JobId, JobIdReferenceType Parent, TConstArrayView<JobIdReferenceType> Predecessors);
 
@@ -61,9 +63,12 @@ public:
 	TTuple<const FJobHistoryEntriesById&, TConstArrayView<JobIdType>> ResolveJobHistory();
 
 private:
+	struct FJobEvent_JobCreated
+	{
+	};
+
 	struct FJobEvent_JobEnqueued
 	{
-		JobIdType Parent;
 		TArray<JobIdType, TInlineAllocator<1>> Predecessors;
 	};
 
@@ -79,8 +84,12 @@ private:
 	{
 	};
 
-	using FJobEvent =
-		TVariant<FJobEvent_JobEnqueued, FJobEvent_JobExecuted, FJobEvent_StageClosed, FJobEvent_JobCompleted>;
+	using FJobEvent = TVariant<
+		FJobEvent_JobCreated,
+		FJobEvent_JobEnqueued,
+		FJobEvent_JobExecuted,
+		FJobEvent_StageClosed,
+		FJobEvent_JobCompleted>;
 
 	struct FJobHistoryQueueEntry
 	{
@@ -105,6 +114,8 @@ private:
 	void TrimHistoryQueue();
 
 	static void UpdateJobHistoryEntry(FJobHistoryEntry& JobHistoryEntry, FJobHistoryQueueEntry QueueEntry);
+	static void UpdateJobHistoryEntry(
+		FJobHistoryEntry& JobHistoryEntry, FJobHistoryQueueEntry QueueEntry, FJobEvent_JobCreated Event);
 	static void UpdateJobHistoryEntry(
 		FJobHistoryEntry& JobHistoryEntry, FJobHistoryQueueEntry QueueEntry, FJobEvent_JobEnqueued Event);
 	static void UpdateJobHistoryEntry(

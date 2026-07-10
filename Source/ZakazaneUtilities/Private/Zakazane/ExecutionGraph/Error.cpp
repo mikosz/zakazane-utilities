@@ -39,6 +39,19 @@ FString FCircularDependencyError::ToString() const
 		TEXT("Circular dependency detected: {{0}}"), {*WriteToString<128>(UE::String::Join(Cycle, TEXT(" => ")))});
 }
 
+FString FJobStateIsNotAllowedAPayload::ToString()
+{
+	return TEXT(
+		"Invalid operation: Get or SetPayload on an invalid job state. "
+		"GetPayload is only allowed on incomplete jobs. SetPayload is only allowed on incomplete, "
+		"non-executing jobs.");
+}
+
+FString FPayloadAlreadySet::ToString()
+{
+	return TEXT("Payload for job has already been set.");
+}
+
 FString ToString(const FError& Error)
 {
 	return Visit([](const auto& V) { return V.ToString(); }, Error);

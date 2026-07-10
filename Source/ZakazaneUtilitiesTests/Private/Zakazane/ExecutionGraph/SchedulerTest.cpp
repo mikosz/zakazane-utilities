@@ -58,14 +58,14 @@ bool TestJobState(
 void TestTaskExecution(FAutomationTestBase& Test, const FString& Prefix, FFutureTaskExecution FutureTaskExecution)
 {
 	FutureTaskExecution.Next(
-		[&Test, Prefix](TCancelableFutureResult<FJobCompletionPromise> CompletionPromiseResult)
+		[&Test, Prefix](TCancelableFutureResult<FTaskArgs> TaskArgsResult)
 		{
-			if (!Test.TestTrue(Prefix + "Executed successfully", !CompletionPromiseResult.HasError()))
+			if (!Test.TestTrue(Prefix + "Executed successfully", !TaskArgsResult.HasError()))
 			{
 				return;
 			}
 
-			CompletionPromiseResult->EmplaceValue();
+			TaskArgsResult->CompletionPromise.EmplaceValue();
 		});
 }
 
@@ -76,15 +76,14 @@ void TestDelayedTaskExecution(
 	TOptional<FJobCompletionPromise>& OutJobCompletionPromise)
 {
 	FutureTaskExecution.Next(
-		[&OutJobCompletionPromise, &Test, Prefix](
-			TCancelableFutureResult<FJobCompletionPromise> CompletionPromiseResult)
+		[&OutJobCompletionPromise, &Test, Prefix](TCancelableFutureResult<FTaskArgs> TaskArgsResult)
 		{
-			if (!Test.TestTrue(Prefix + "Executed successfully", !CompletionPromiseResult.HasError()))
+			if (!Test.TestTrue(Prefix + "Executed successfully", !TaskArgsResult.HasError()))
 			{
 				return;
 			}
 
-			OutJobCompletionPromise = MoveTemp(CompletionPromiseResult).GetValue();
+			OutJobCompletionPromise = MoveTemp(TaskArgsResult).GetValue().CompletionPromise;
 		});
 }
 
@@ -487,6 +486,84 @@ void SuccessorsThenPredecessors(FAutomationTestBase& Test, const FString& Prefix
 }
 
 template <class SynchronizationPrimitiveType>
+void EmptyDefineStageWithPrerequisitesCompletesImmediately(FAutomationTestBase& Test, const FString& Prefix)
+{
+	using SchedulerType =
+		TScheduler<decltype(LogExecutionGraphTest), TDefaultSchedulerJobIdTraits<>, SynchronizationPrimitiveType>;
+	using JobIdReferenceType = SchedulerType::JobIdReferenceType;
+
+	SchedulerType Scheduler{LogExecutionGraphTest};
+
+	const auto PredecessorStageId = Scheduler.MakeJobIdFromString(TEXTVIEW("PredecessorStage"));
+	const auto PredecessorTaskId = Scheduler.MakeJobIdFromString(TEXTVIEW("PredecessorStage.Task"));
+	const auto SuccessorStageId = Scheduler.MakeJobIdFromString(TEXTVIEW("SuccessorStage"));
+	const auto FollowingStageId = Scheduler.MakeJobIdFromString(TEXTVIEW("FollowingStage"));
+
+	const bool bPredecessorStageEnqueued =
+		TestEnqueueStage(Test, Prefix + TEXT("PredecessorStage: "), Scheduler, PredecessorStageId, {});
+	ZKZ_RETURN_IF(!bPredecessorStageEnqueued);
+	auto FuturePredecessorTaskExecutionOpt =
+		TestEnqueueTask(Test, Prefix + TEXT("PredecessorTask: "), Scheduler, PredecessorTaskId, {});
+	ZKZ_RETURN_IF(!FuturePredecessorTaskExecutionOpt.IsSet());
+
+	const bool bSuccessorStageEnqueued = TestEnqueueStage(
+		Test, Prefix + TEXT("SuccessorStage: "), Scheduler, SuccessorStageId, {JobIdReferenceType{PredecessorStageId}});
+	ZKZ_RETURN_IF(!bSuccessorStageEnqueued);
+
+	const bool bFollowingStageEnqueued = TestEnqueueStage(
+		Test, Prefix + TEXT("FollowingStage: "), Scheduler, FollowingStageId, {JobIdReferenceType{SuccessorStageId}});
+	ZKZ_RETURN_IF(!bFollowingStageEnqueued);
+
+	TestCloseStage(Test, Prefix + "PredecessorStage: ", Scheduler, PredecessorStageId);
+	TestCloseStage(Test, Prefix + "SuccessorStage: ", Scheduler, SuccessorStageId);
+	TestCloseStage(Test, Prefix + "FollowingStage: ", Scheduler, FollowingStageId);
+
+	{
+		TestJobState(
+			Test,
+			Prefix + TEXT("PredecessorStage: "),
+			Scheduler,
+			PredecessorStageId,
+			EZkzExecutionGraphJobStateId::ExecutingStage);
+		TestJobState(
+			Test,
+			Prefix + TEXT("SuccessorStage: "),
+			Scheduler,
+			SuccessorStageId,
+			EZkzExecutionGraphJobStateId::DefinedStage);
+		TestJobState(
+			Test,
+			Prefix + TEXT("FollowingStage: "),
+			Scheduler,
+			FollowingStageId,
+			EZkzExecutionGraphJobStateId::DefinedStage);
+	}
+
+	TestTaskExecution(Test, Prefix + TEXT("PredecessorTask: "), MoveTemp(*FuturePredecessorTaskExecutionOpt));
+
+	{
+		TestJobState(
+			Test,
+			Prefix + TEXT("PredecessorStage: "),
+			Scheduler,
+			PredecessorStageId,
+			EZkzExecutionGraphJobStateId::Completed);
+		TestJobState(
+			Test,
+			Prefix + TEXT("SuccessorStage: "),
+			Scheduler,
+			SuccessorStageId,
+			EZkzExecutionGraphJobStateId::Completed);
+		TestJobState(
+			Test,
+			Prefix + TEXT("FollowingStage: "),
+			Scheduler,
+			FollowingStageId,
+			EZkzExecutionGraphJobStateId::Completed);
+	}
+}
+
+template <class SynchronizationPrimitiveType>
 void PredecessorsDontHaveSameParent(FAutomationTestBase& Test, const FString& Prefix)
 {
 	using JobIdTraitsType = TDefaultSchedulerJobIdTraits<>;
@@ -693,6 +770,18 @@ ZKZ_ADD_TEST(SuccessorsThenPredecessors_ThreadUnsafe)
 {
 	using namespace SchedulerTestPrivate;
 	SuccessorsThenPredecessors<FThreadUnsafe>(*this, TEXT("Thread unsafe: "));
+}
+
+ZKZ_ADD_TEST(EmptyDefineStageWithPrerequisitesCompletesImmediately_ThreadSafe)
+{
+	using namespace SchedulerTestPrivate;
+	EmptyDefineStageWithPrerequisitesCompletesImmediately<FThreadSafe>(*this, TEXT("Thread safe: "));
+}
+
+ZKZ_ADD_TEST(EmptyDefineStageWithPrerequisitesCompletesImmediately_ThreadUnsafe)
+{
+	using namespace SchedulerTestPrivate;
+	EmptyDefineStageWithPrerequisitesCompletesImmediately<FThreadUnsafe>(*this, TEXT("Thread unsafe: "));
 }
 
 ZKZ_ADD_TEST(PredecessorsDontHaveSameParent_ThreadSafe)

@@ -21,7 +21,7 @@ class ZAKAZANEUTILITIES_API FScopedExecution
 public:
 	FScopedExecution() = default;
 
-	explicit FScopedExecution(TFunction<void()> InFunc);
+	explicit FScopedExecution(TUniqueFunction<void()> InFunc);
 
 	~FScopedExecution();
 
@@ -37,10 +37,10 @@ public:
 	void Trigger();
 
 	/// Clears the scoped execution object and returns the bound function (if any).
-	TFunction<void()> Release();
+	TUniqueFunction<void()> Release();
 
 private:
-	TFunction<void()> Func;
+	TUniqueFunction<void()> Func;
 
 	friend void Zkz::Swap(FScopedExecution& Lhs, FScopedExecution& Rhs);
 };

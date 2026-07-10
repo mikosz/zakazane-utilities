@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 
 #include "Zakazane/Future.h"
-#include "Zakazane/Result.h"
 
 namespace Zkz::ExecutionGraph
 {
@@ -21,8 +20,14 @@ using FJobCompletionPromises = TArray<FJobCompletionPromise, TInlineAllocator<3>
 using FJobExecutionPromise = TScopedPromise<void>;
 using FFutureJobExecution = TCancelableFuture<void>;
 
-using FTaskExecutionPromise = TScopedPromise<FJobCompletionPromise>;
-using FFutureTaskExecution = TCancelableFuture<FJobCompletionPromise>;
+struct FTaskArgs
+{
+	FJobCompletionPromise CompletionPromise;
+	void* Payload = nullptr;
+};
+
+using FTaskExecutionPromise = TScopedPromise<FTaskArgs>;
+using FFutureTaskExecution = TCancelableFuture<FTaskArgs>;
 
 using FFuturePredecessorCompletions = TArray<FFutureJobCompletion, TInlineAllocator<1>>;
 

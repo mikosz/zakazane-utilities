@@ -1,5 +1,6 @@
 ﻿#include "Zakazane/Serialization.h"
 
+#include "JsonObjectConverter.h"
 #include "Misc/ScopeExit.h"
 #include "Misc/SlowTask.h"
 #include "Misc/StringOutputDevice.h"
@@ -7,10 +8,13 @@
 #include "UObject/Field.h"
 #include "UObject/TextProperty.h"
 #include "Zakazane/ContinueIfMacros.h"
+#include "Zakazane/Logging.h"
 #include "Zakazane/OutputDeviceStatsWrapper.h"
 #include "Zakazane/ReturnIfMacros.h"
 
 #define LOCTEXT_NAMESPACE "ZakazaneUtilitiesSerialization"
+
+DEFINE_LOG_CATEGORY(LogZkzSerialization);
 
 namespace Zkz::Serialization
 {
@@ -254,6 +258,66 @@ EImportResult ImportFromCSV(
 	}
 
 	return AggregatedResult;
+}
+
+TResult<FString, FString> ExportToJSON(
+	const UStruct& Struct, const TArrayView<const void*> Objects, int64 CheckFlags, int64 SkipFlags, bool bStopOnError)
+{
+	TArray<TSharedPtr<FJsonValue>> JsonValueArray;
+	JsonValueArray.Reserve(Objects.Num());
+
+	for (int32 Index = 0; Index < Objects.Num(); ++Index)
+	{
+		const void* const ObjPtr = Objects[Index];
+
+		if (ObjPtr == nullptr)
+		{
+			if (bStopOnError)
+			{
+				return Err(FString::Format(TEXT("Export aborted: Object at index {0} is a null pointer."), {Index}));
+			}
+
+			LogUserError(
+				LogZkzSerialization,
+				EMessageSeverity::Warning,
+				FString::Format(TEXT("ExportToJSON: Object at index {0} is a null pointer. Skipping."), {Index}));
+			continue;
+		}
+
+		TSharedRef<FJsonObject> JsonObj = MakeShared<FJsonObject>();
+
+		const bool bSuccess =
+			FJsonObjectConverter::UStructToJsonObject(&Struct, ObjPtr, JsonObj, CheckFlags, SkipFlags);
+		if (!bSuccess)
+		{
+			if (bStopOnError)
+			{
+				return Err(
+					FString::Format(
+						TEXT("Export aborted: FJsonObjectConverter failed to serialize object at index {0}."),
+						{Index}));
+			}
+
+			LogUserError(
+				LogZkzSerialization,
+				EMessageSeverity::Warning,
+				FString::Format(TEXT("ExportToJSON: FJsonObjectConverter failed to serialize object at index {0}. Skipping."), {Index}));
+			continue;
+		}
+
+		JsonValueArray.Emplace(MakeShared<FJsonValueObject>(MoveTemp(JsonObj)));
+	}
+
+	FString OutputJsonString;
+	const bool bSerializeSuccess =
+		FJsonSerializer::Serialize(JsonValueArray, TJsonWriterFactory<>::Create(&OutputJsonString));
+
+	if (!bSerializeSuccess)
+	{
+		return Err(TEXT("Export aborted: FJsonSerializer::Serialize failed to construct the final JSON string."));
+	}
+
+	return Ok(OutputJsonString);
 }
 
 }  // namespace Zkz::Serialization

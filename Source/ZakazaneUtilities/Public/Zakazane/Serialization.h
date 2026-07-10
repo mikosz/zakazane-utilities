@@ -4,8 +4,12 @@
 
 #include "CoreMinimal.h"
 
+#include "Algo.h"
 #include "Algo/Transform.h"
+#include "Result.h"
 #include "TypeTraits.h"
+
+ZAKAZANEUTILITIES_API DECLARE_LOG_CATEGORY_EXTERN(LogZkzSerialization, Log, All);
 
 struct FCsvParser;
 struct FSlowTask;
@@ -82,6 +86,28 @@ EImportResult ImportFromCSV(
 		[&LineCallback](const void* const Data) { LineCallback(*static_cast<const T*>(Data)); },
 		Output,
 		SlowTask);
+}
+
+/// Exports an array of UStruct objects to a formatted JSON array string.
+/// @return Formatted JSON string, or empty string if serialization fails.
+ZAKAZANEUTILITIES_API TResult<FString, FString> ExportToJSON(
+	const UStruct& Struct,
+	const TArrayView<const void*> Objects,
+	int64 CheckFlags = 0,
+	int64 SkipFlags = 0,
+	bool bStopOnError = true);
+
+/// @see ExportToJSON(const UStruct& Struct, TArrayView<const void*> Objects, int64 CheckFlags, int64 SkipFlags)
+///
+/// Templated version for contiguous arrays of UStruct values.
+template <class T UE_REQUIRES(TIsUHTUStruct_v<T>)>
+TResult<FString, FString> ExportToJSON(
+	const TArrayView<const T> Objects, int64 CheckFlags = 0, int64 SkipFlags = 0, bool bStopOnError = true)
+{
+	TArray<const void*, TInlineAllocator<128>> Pointers =
+		Zkz::TransformTo<TArray<const void*, TInlineAllocator<128>>>(Objects, [](const T& Ref) { return &Ref; });
+
+	return ExportToJSON(*T::StaticStruct(), Pointers, CheckFlags, SkipFlags, bStopOnError);
 }
 
 }  // namespace Zkz::Serialization

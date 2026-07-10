@@ -113,7 +113,7 @@ auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, Inspe
 		JobIdTraitsType::Increment(JobId);
 	}
 
-	Jobs.Emplace(JobId);
+	AddJob(JobId, L);
 
 	return JobId;
 }
@@ -210,9 +210,9 @@ template <
 	class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
-	EnqueueStage(JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors)
+	EnqueueStage(JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, TUniquePtr<void> InPayload)
 {
-	return EnqueueStage(MoveTemp(JobId), Predecessors, Lock());
+	return EnqueueStage(MoveTemp(JobId), Predecessors, Lock(), MoveTemp(InPayload));
 }
 
 template <
@@ -223,7 +223,11 @@ template <
 	class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
-	EnqueueStage(JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, const ScopedLockType& L)
+	EnqueueStage(
+		JobIdType JobId,
+		TConstArrayView<JobIdReferenceType> Predecessors,
+		const ScopedLockType& L,
+		TUniquePtr<void> InPayload)
 {
 	check(!JobIdUtilities::IsEmpty<JobIdTraitsType>(JobId));
 	check(SynchronizationTraits::IsLocked(L));
@@ -247,7 +251,12 @@ TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, Synchroniza
 			TrackChildJobCompletion(ParentId, MoveTemp(FutureStageCompletion), L);
 		ZKZ_PROPAGATE_IF_ERROR(TrackJobCompletionResult);
 
-		FindOrAddJob(JobId, L).DefineStage(MoveTemp(StageCompletionPromise));
+		auto& Job = FindOrAddJob(JobId, L);
+		if (InPayload != nullptr)
+		{
+			ZKZ_PROPAGATE_IF_ERROR(Job.SetPayload(MoveTemp(InPayload)));
+		}
+		Job.DefineStage(MoveTemp(StageCompletionPromise));
 	}
 
 	ZKZ_PROPAGATE_IF_ERROR(EnqueueJobCommon(JobId, Predecessors, &TScheduler::ExecuteStage, L));
@@ -266,9 +275,10 @@ TResult<FFutureTaskExecution, FError> TScheduler<
 	LogCategoryType,
 	InJobIdTraitsType,
 	SynchronizationTraits,
-	InspectionsType>::EnqueueTask(JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors)
+	InspectionsType>::
+	EnqueueTask(JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, TUniquePtr<void> InPayload)
 {
-	return EnqueueTask(MoveTemp(JobId), MoveTemp(Predecessors), Lock());
+	return EnqueueTask(MoveTemp(JobId), MoveTemp(Predecessors), Lock(), MoveTemp(InPayload));
 }
 
 template <
@@ -283,7 +293,11 @@ TResult<FFutureTaskExecution, FError> TScheduler<
 	InJobIdTraitsType,
 	SynchronizationTraits,
 	InspectionsType>::
-	EnqueueTask(JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, const ScopedLockType& L)
+	EnqueueTask(
+		JobIdType JobId,
+		TConstArrayView<JobIdReferenceType> Predecessors,
+		const ScopedLockType& L,
+		TUniquePtr<void> InPayload)
 {
 	check(!JobIdUtilities::IsEmpty<JobIdTraitsType>(JobId));
 	check(SynchronizationTraits::IsLocked(L));
@@ -310,13 +324,21 @@ TResult<FFutureTaskExecution, FError> TScheduler<
 			TrackChildJobCompletion(ParentId, MoveTemp(FutureTaskCompletion), L);
 		ZKZ_PROPAGATE_IF_ERROR(TrackJobCompletionResult);
 
-		FindOrAddJob(JobId, L).DefineTask(MoveTemp(TaskExecutionPromise), MoveTemp(TaskCompletionPromise));
+		FJob& Job = FindOrAddJob(JobId, L);
+		if (InPayload != nullptr)
+		{
+			ZKZ_PROPAGATE_IF_ERROR(Job.SetPayload(MoveTemp(InPayload)));
+		}
+		Job.DefineTask(MoveTemp(TaskExecutionPromise), MoveTemp(TaskCompletionPromise));
 	}
 
 	ZKZ_PROPAGATE_IF_ERROR(EnqueueJobCommon(JobId, Predecessors, &TScheduler::ExecuteTask, L));
 
 	return Ok(MoveTemp(FutureTaskExecution));
 }
+
+// #TODO #ExecutionGraph: CloseStage should fail if it contains undefined jobs, _OR_ allow to
+// define jobs in closed stages if they have been stubbed before.
 
 template <
 	CLogCategory LogCategoryType,
@@ -353,13 +375,9 @@ TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, Synchroniza
 		}
 	}
 
-	auto CloseStageResult = FindOrAddJob(StageId, L).CloseStage();
-
-	ZKZ_PROPAGATE_IF_ERROR(CloseStageResult);
-
-	for (auto& JobCompletionPromise : CloseStageResult.GetValue())
 	{
-		JobCompletionPromise.EmplaceValue();
+		auto CloseStageResult = FindOrAddJob(StageId, L).CloseStage();
+		ZKZ_PROPAGATE_IF_ERROR(CloseStageResult);
 	}
 
 	return Ok();
@@ -408,6 +426,27 @@ auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, Inspe
 
 	FJob* const FoundJob = Jobs.FindByHash(JobIdTraitsType::GetTypeHash(JobId), JobId);
 	ZKZ_RETURN_IF(FoundJob != nullptr, *FoundJob);
+
+	return AddJob(MoveTemp(JobId), L);
+}
+
+template <
+	CLogCategory LogCategoryType,
+	CJobIdTraits InJobIdTraitsType,
+	CSynchronizationTrait SynchronizationTraits,
+	template <class>
+	class InspectionsType>
+	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
+FJob& TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::AddJob(
+	JobIdReferenceType JobId, const ScopedLockType& L)
+{
+	if constexpr (WithInspections)
+	{
+		if (auto* const DebugData = GetDebugData(L); DebugData != nullptr)
+		{
+			DebugData->OnJobCreated(JobId);
+		}
+	}
 
 	return Jobs.Emplace(JobId);
 }
@@ -550,12 +589,7 @@ void TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, Inspe
 		}
 	}
 
-	TArray<FJobExecutionPromise> JobExecutionPromises = FindOrAddJob(JobId, L).ExecuteStage();
-
-	for (FJobExecutionPromise& JobExecutionPromise : JobExecutionPromises)
-	{
-		JobExecutionPromise.EmplaceValue();
-	}
+	FindOrAddJob(JobId, L).ExecuteStage();
 }
 
 template <
@@ -584,7 +618,8 @@ void TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, Inspe
 {
 	check(SynchronizationTraits::IsLocked(L));
 
-	FTaskExecutionPromise TaskExecutionPromise = FindOrAddJob(JobId, L).ExecuteTask();
+	auto& Job = FindOrAddJob(JobId, L);
+	FTaskExecutionPromise TaskExecutionPromise = Job.ExecuteTask();
 
 	FJobCompletionPromise JobCompletionPromise;
 
@@ -605,7 +640,8 @@ void TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, Inspe
 			OnTaskCompleted(JobId, L);
 		});
 
-	TaskExecutionPromise.EmplaceValue(MoveTemp(JobCompletionPromise));
+	TaskExecutionPromise.EmplaceValue(
+		FTaskArgs{MoveTemp(JobCompletionPromise), Job.template GetPayload<void>().GetValue()});
 }
 
 template <
@@ -640,15 +676,7 @@ TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, Synchroniza
 
 	IfNotCanceled(
 		MoveTemp(FutureJobCompletion),
-		[this, ParentJobId = JobIdType{ParentJobId}]
-		{
-			auto JobCompletionPromises = FindOrAddJob(ParentJobId, Lock()).OnChildJobCompleted();
-
-			for (auto& JobCompletionPromise : JobCompletionPromises)
-			{
-				JobCompletionPromise.EmplaceValue();
-			}
-		});
+		[this, ParentJobId = JobIdType{ParentJobId}] { FindOrAddJob(ParentJobId, Lock()).OnChildJobCompleted(); });
 
 	return Ok();
 }
@@ -681,12 +709,7 @@ void TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, Inspe
 
 	UE_LOG(LogCategory, Log, TEXT("Task %s completed"), *JobIdTraitsType::ToString(JobId));
 
-	auto JobCompletionPromises = FindOrAddJob(JobId, L).OnTaskCompleted();
-
-	for (auto& JobCompletionPromise : JobCompletionPromises)
-	{
-		JobCompletionPromise.EmplaceValue();
-	}
+	FindOrAddJob(JobId, L).OnTaskCompleted();
 }
 
 }  // namespace Zkz::ExecutionGraph

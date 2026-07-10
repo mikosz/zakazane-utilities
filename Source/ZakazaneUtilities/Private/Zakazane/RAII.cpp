@@ -3,7 +3,7 @@
 namespace Zkz
 {
 
-FScopedExecution::FScopedExecution(TFunction<void()> InFunc) : Func{MoveTemp(InFunc)}
+FScopedExecution::FScopedExecution(TUniqueFunction<void()> InFunc) : Func{MoveTemp(InFunc)}
 {
 }
 
@@ -38,7 +38,7 @@ void FScopedExecution::Trigger()
 	}
 }
 
-[[nodiscard]] TFunction<void()> FScopedExecution::Release()
+[[nodiscard]] TUniqueFunction<void()> FScopedExecution::Release()
 {
 	return MoveTemp(Func);
 }

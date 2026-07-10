@@ -358,6 +358,13 @@ auto AggregateFutureResults(TArray<TFutureResult<FutureResultType, FutureErrorTy
 		});
 }
 
+/// Helper to create and immediately cancel a promise, returning a canceled future.
+template <typename ResultType>
+TCancelableFuture<ResultType> MakeCanceledFuture()
+{
+	return TScopedPromise<ResultType>{}.GetFuture();
+}
+
 /// Helper to create and immediately fulfill a promise, returning a ready future.
 template <typename ResultType, typename... ArgTypes>
 TCancelableFuture<ResultType> MakeImmediateFuture(ArgTypes&&... Args)

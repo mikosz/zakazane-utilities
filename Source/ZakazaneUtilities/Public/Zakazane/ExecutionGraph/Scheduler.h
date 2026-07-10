@@ -9,6 +9,7 @@
 #include "JobIdTraits.h"
 #include "Scheduler.h"
 #include "SynchronizationTraits.h"
+#include "Templates/UniquePtr.h"
 #include "Zakazane/Logging.h"
 #include "Zakazane/TypeTraits.h"
 
@@ -87,7 +88,7 @@ public:
 	/// Call the provided function on a job with the given ID. Note that this function asserts that the job by the
 	/// given ID exists. If you're not sure whether it exists, first call HasJob.
 	template <class FunctionType, class... AdditionalArgTypes>
-		requires CInvokable<FunctionType, const FJob&>
+		requires CInvokable<FunctionType, const FJob&, AdditionalArgTypes...>
 	auto WithJob(JobIdType JobId, FunctionType&& Func, AdditionalArgTypes&&... AdditionalArgs) const
 	{
 		auto L = Lock();
@@ -95,7 +96,7 @@ public:
 	}
 
 	template <class FunctionType, class... AdditionalArgTypes>
-		requires CInvokable<FunctionType, const FJob&>
+		requires CInvokable<FunctionType, const FJob&, AdditionalArgTypes...>
 	auto WithJob(
 		JobIdType JobId, const ScopedLockType& L, FunctionType&& Func, AdditionalArgTypes&&... AdditionalArgs) const
 	{
@@ -107,16 +108,43 @@ public:
 		return ::Invoke(Func, *JobPtr, Forward<AdditionalArgTypes>(AdditionalArgs)...);
 	}
 
+	/// Call the provided function with the given job's payload.
+	template <class PayloadType, class FunctionType, class... AdditionalArgTypes>
+		requires CInvokable<FunctionType, TResult<PayloadType*, FError>, AdditionalArgTypes...>
+	auto WithPayload(JobIdType JobId, FunctionType&& Func, AdditionalArgTypes&&... AdditionalArgs) const
+	{
+		auto L = Lock();
+		return WithPayload<PayloadType>(
+			MoveTemp(JobId), L, Forward<FunctionType>(Func), Forward<AdditionalArgTypes>(AdditionalArgs)...);
+	}
+
+	template <class PayloadType, class FunctionType, class... AdditionalArgTypes>
+		requires CInvokable<FunctionType, TResult<PayloadType*, FError>, AdditionalArgTypes...>
+	auto WithPayload(
+		JobIdType JobId, const ScopedLockType& L, FunctionType&& Func, AdditionalArgTypes&&... AdditionalArgs) const
+	{
+		check(SynchronizationTraits::IsLocked(L));
+
+		const FJob* const JobPtr = Jobs.Find(JobId);
+		check(JobPtr != nullptr);
+
+		return ::Invoke(Func, JobPtr->GetPayload<PayloadType>(), Forward<AdditionalArgTypes>(AdditionalArgs)...);
+	}
+
 	/// Returns a future that will be completed when the job with the specified id completes execution.
 	FFutureJobCompletion WhenCompleted(JobIdReferenceType JobId);
 	FFutureJobCompletion WhenCompleted(JobIdReferenceType JobId, const ScopedLockType& L);
 
 	/// Defines an execution stage and its dependencies on other stages / tasks.
 	/// CloseStage needs to be called at some point, allowing the stage to become completed when all running tasks
-	/// finish and enabling to trigger dependent stages.
-	TResult<void, FError> EnqueueStage(JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors);
+	/// finish and enabling to trigger dependent stages
 	TResult<void, FError> EnqueueStage(
-		JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, const ScopedLockType& L);
+		JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, TUniquePtr<void> InPayload = nullptr);
+	TResult<void, FError> EnqueueStage(
+		JobIdType JobId,
+		TConstArrayView<JobIdReferenceType> Predecessors,
+		const ScopedLockType& L,
+		TUniquePtr<void> InPayload = nullptr);
 
 	/// Defines a task and its dependencies on other stages / tasks. The stage doesn't have to be defined at this point;
 	/// the only requirement is that CloseStage has not been called for it.
@@ -141,9 +169,12 @@ public:
 	///		}
 	/// </pre>
 	TResult<FFutureTaskExecution, FError> EnqueueTask(
-		JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors);
+		JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, TUniquePtr<void> InPayload = nullptr);
 	TResult<FFutureTaskExecution, FError> EnqueueTask(
-		JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, const ScopedLockType& L);
+		JobIdType JobId,
+		TConstArrayView<JobIdReferenceType> Predecessors,
+		const ScopedLockType& L,
+		TUniquePtr<void> InPayload = nullptr);
 
 	/// Closes a stage, preventing any further tasks from being added to it.
 	/// The current implementation prohibits enqueueing jobs even if they have been stubbed prior to closing.
@@ -154,6 +185,23 @@ public:
 	/// Returns the debug data for this scheduler. May be null if WithInspections is false.
 	const DebugDataType* GetDebugData(const ScopedLockType& L) const;
 	DebugDataType* GetDebugData(const ScopedLockType& L);
+
+	/// Creates a payload object for the job. Note that only incomplete, non-executing jobs
+	/// can have a payload set. Setting a payload on a job state where a payload has already
+	/// been set is also invalid.
+	/// To access the payload, use WithJob and FJob::GetPayload.
+	template <class T, class... ArgTypes>
+	TResult<void, FError> EmplacePayload(JobIdReferenceType JobId, ArgTypes&&... Args)
+	{
+		return EmplacePayload<T>(JobId, Lock(), Forward<ArgTypes>(Args)...);
+	}
+
+	template <class T, class... ArgTypes>
+	TResult<void, FError> EmplacePayload(JobIdReferenceType JobId, const ScopedLockType& L, ArgTypes&&... Args)
+	{
+		check(SynchronizationTraits::IsLocked(L));
+		return FindOrAddJob(JobId, L).SetPayload(::MakeUnique<T>(Forward<ArgTypes>(Args)...));
+	}
 
 private:
 	using MutexType = SynchronizationTraits::MutexType;
@@ -170,6 +218,8 @@ private:
 	FFutureJobCompletion FutureRootJobCompletion;
 
 	FJob& FindOrAddJob(JobIdReferenceType JobId, const ScopedLockType& L);
+
+	FJob& AddJob(JobIdReferenceType JobId, const ScopedLockType& L);
 
 	TResult<void, FError> EnqueueJobCommon(
 		JobIdType JobId,

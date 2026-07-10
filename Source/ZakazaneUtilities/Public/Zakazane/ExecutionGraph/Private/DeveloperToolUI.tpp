@@ -27,6 +27,8 @@ constexpr int32 CompletedValue = 3;
 template <CJobIdTraits InJobIdTraitsType>
 int32 GetOrderedStateValue(const typename TDebugData<InJobIdTraitsType>::FJobHistoryEntry* JobHistoryEntry)
 {
+	ZKZ_RETURN_IF_INVALID(JobHistoryEntry, UnknownValue);
+
 	if (JobHistoryEntry->CompletedTime.IsSet())
 	{
 		return CompletedValue;
@@ -97,24 +99,25 @@ template <CJobIdTraits InJobIdTraitsType>
 [[nodiscard]] bool TickJobHeader(
 	const typename InJobIdTraitsType::JobIdType& JobId, const bool bHasChildren, const auto& JobHistoryEntriesById)
 {
-	const auto JobHistoryEntry = JobHistoryEntriesById[JobId];
+	const auto* const JobHistoryEntry = JobHistoryEntriesById.Find(JobId);
 
-	const auto [State, Color] = [&JobHistoryEntry]() -> TTuple<const char*, const ImVec4&>
+	const auto [State, Color] = [JobHistoryEntry]() -> TTuple<const char*, const ImVec4&>
 	{
-		if (JobHistoryEntry.CompletedTime.IsSet())
+		ZKZ_RETURN_IF_INVALID(JobHistoryEntry, {"Unknown", Colors::Unknown});
+
+		if (JobHistoryEntry->CompletedTime.IsSet())
 		{
 			return {"Completed", Colors::Completed};
 		}
-		if (JobHistoryEntry.ExecutedTime.IsSet())
+		if (JobHistoryEntry->ExecutedTime.IsSet())
 		{
 			return {"Executing", Colors::Executing};
 		}
-		if (JobHistoryEntry.EnqueuedTime.IsSet())
+		if (JobHistoryEntry->EnqueuedTime.IsSet())
 		{
 			return {"Pending", Colors::Pending};
 		}
 
-		check(false);
 		return {"Unknown", Colors::Unknown};
 	}();
 
@@ -133,9 +136,13 @@ template <CJobIdTraits InJobIdTraitsType>
 		return {FUtf8String{InJobIdTraitsType::ToString(LeafJobId)}, false};
 	}();
 
-	const auto TreeNodeFlags =
-		((!JobHistoryEntry.Predecessors.IsEmpty() || bHasChildren) ? ImGuiTreeNodeFlags_None : ImGuiTreeNodeFlags_Leaf)
-		| (bIsRoot ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None);
+	const bool bIsExpandable =
+		(Pointer::IsValid(JobHistoryEntry) && (!JobHistoryEntry->Predecessors.IsEmpty() || bHasChildren));
+
+	const auto TreeNodeFlags = (bIsExpandable ? ImGuiTreeNodeFlags_None : ImGuiTreeNodeFlags_Leaf)
+							   | (bIsRoot ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None);
+
+	const bool bIsClosed = Pointer::IsValid(JobHistoryEntry) && JobHistoryEntry->bClosed;
 
 	const bool bTreeNodeOpen = ImGui::TreeNodeEx(
 		reinterpret_cast<const char*>(*JobLabel),
@@ -143,13 +150,15 @@ template <CJobIdTraits InJobIdTraitsType>
 		"%s [%s]%s",
 		*JobLabel,
 		State,
-		JobHistoryEntry.bClosed ? " (closed)" : "");
+		bIsClosed ? " (closed)" : "");
 
 	// If tree node is open we'll show the dependencies within
 	ZKZ_RETURN_IF(bTreeNodeOpen, true);
 
+	ZKZ_RETURN_IF_INVALID(JobHistoryEntry, false);
+
 	if (const auto& [PredecessorsString, PredecessorsColor] =
-			GetPredecessorsString<InJobIdTraitsType>(JobHistoryEntry.Predecessors, JobHistoryEntriesById);
+			GetPredecessorsString<InJobIdTraitsType>(JobHistoryEntry->Predecessors, JobHistoryEntriesById);
 		!PredecessorsString.IsEmpty())
 	{
 		ImGui::SameLine();

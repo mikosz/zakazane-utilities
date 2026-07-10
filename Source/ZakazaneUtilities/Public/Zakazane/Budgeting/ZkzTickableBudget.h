@@ -16,7 +16,7 @@ class ZAKAZANEUTILITIES_API UZkzTickableBudget final : public UObject, public FT
 	GENERATED_BODY()
 
 public:
-	DECLARE_LOG_CATEGORY_CLASS(LogCategory, Display, All);
+	ZKZ_DECLARE_LOG_CATEGORY_CLASS(LogCategory, Display, All);
 
 	using BudgetType = decltype(Zkz::Budgeting::MakeBudget(FTimespan{}, LogCategory));
 	using TaskType = BudgetType::TaskType;
