@@ -136,7 +136,7 @@ template <>
 inline constexpr float SmallNumber<float> = UE_SMALL_NUMBER;
 
 template <>
-inline constexpr float SmallNumber<double> = UE_DOUBLE_SMALL_NUMBER;
+inline constexpr double SmallNumber<double> = UE_DOUBLE_SMALL_NUMBER;
 
 /// Constexpr version of FMath::Abs
 template <class T UE_REQUIRES(TIsArithmetic<T>::Value)>

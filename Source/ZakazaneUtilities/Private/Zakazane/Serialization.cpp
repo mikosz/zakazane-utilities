@@ -50,7 +50,7 @@ FString GetCSVSanitizedString(FString String)
 
 FString ExportToCSV(const UStruct& Struct, const TArrayView<const void*> Objects)
 {
-	FStringBuilderBase Builder;
+	TStringBuilder<1024> Builder;
 
 	for (TFieldIterator<FProperty> FieldIt{&Struct}; FieldIt; ++FieldIt)
 	{
@@ -301,7 +301,9 @@ TResult<FString, FString> ExportToJSON(
 			LogUserError(
 				LogZkzSerialization,
 				EMessageSeverity::Warning,
-				FString::Format(TEXT("ExportToJSON: FJsonObjectConverter failed to serialize object at index {0}. Skipping."), {Index}));
+				FString::Format(
+					TEXT("ExportToJSON: FJsonObjectConverter failed to serialize object at index {0}. Skipping."),
+					{Index}));
 			continue;
 		}
 

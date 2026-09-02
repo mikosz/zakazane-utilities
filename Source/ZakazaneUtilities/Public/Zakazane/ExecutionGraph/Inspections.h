@@ -193,7 +193,8 @@ public:
 	}
 };
 
-#if UE_BUILD_SHIPPING || UE_BUILD_TEST || (defined(FORCE_BUDGETING_INSPECTIONS) && !FORCE_BUDGETING_INSPECTIONS)
+#if UE_BUILD_SHIPPING || UE_BUILD_TEST \
+	|| (defined(FORCE_EXECUTION_GRAPH_INSPECTIONS) && !FORCE_EXECUTION_GRAPH_INSPECTIONS)
 
 template <CJobIdTraits InJobIdTraitsType>
 using TDefaultInspections = TNullInspections<InJobIdTraitsType>;
