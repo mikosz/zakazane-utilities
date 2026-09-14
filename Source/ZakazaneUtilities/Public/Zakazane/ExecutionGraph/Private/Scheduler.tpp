@@ -14,8 +14,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::MakeJobIdFromString(
 	const FStringView String) -> JobIdType
@@ -27,8 +26,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 // ReSharper disable once CppEnforceFunctionDeclarationStyle
 auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::AppendJobId(
@@ -41,8 +39,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::TScheduler(
 	const LogCategoryType& InLogCategory)
@@ -69,8 +66,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::Lock() const
 	-> ScopedLockType
@@ -82,8 +78,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 // ReSharper disable once CppEnforceFunctionDeclarationStyle
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::MakeUnique(JobIdType JobId)
@@ -96,8 +91,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 // ReSharper disable once CppEnforceFunctionDeclarationStyle
 auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::MakeUnique(
@@ -122,8 +116,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::MakeUniqueJobIdFromString(
 	FStringView JobId) -> JobIdType
@@ -136,8 +129,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::MakeUniqueJobIdFromString(
 	FStringView JobId, const ScopedLockType& L) -> JobIdType
@@ -151,8 +143,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 bool TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::HasJob(
 	JobIdType JobId) const
@@ -164,8 +155,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 bool TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::HasJob(
 	JobIdType JobId, const ScopedLockType& L) const
@@ -179,8 +169,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 FFutureJobCompletion TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
 	WhenCompleted(JobIdReferenceType JobId)
@@ -193,8 +182,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 FFutureJobCompletion TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
 	WhenCompleted(JobIdReferenceType JobId, const ScopedLockType& L)
@@ -206,11 +194,10 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
-	EnqueueStage(JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, TUniquePtr<void> InPayload)
+	EnqueueStage(JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, FPayload InPayload)
 {
 	return EnqueueStage(MoveTemp(JobId), Predecessors, Lock(), MoveTemp(InPayload));
 }
@@ -219,15 +206,11 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
 	EnqueueStage(
-		JobIdType JobId,
-		TConstArrayView<JobIdReferenceType> Predecessors,
-		const ScopedLockType& L,
-		TUniquePtr<void> InPayload)
+		JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, const ScopedLockType& L, FPayload InPayload)
 {
 	check(!JobIdUtilities::IsEmpty<JobIdTraitsType>(JobId));
 	check(SynchronizationTraits::IsLocked(L));
@@ -268,15 +251,13 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TResult<FFutureTaskExecution, FError> TScheduler<
 	LogCategoryType,
 	InJobIdTraitsType,
 	SynchronizationTraits,
-	InspectionsType>::
-	EnqueueTask(JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, TUniquePtr<void> InPayload)
+	InspectionsType>::EnqueueTask(JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, FPayload InPayload)
 {
 	return EnqueueTask(MoveTemp(JobId), MoveTemp(Predecessors), Lock(), MoveTemp(InPayload));
 }
@@ -285,8 +266,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TResult<FFutureTaskExecution, FError> TScheduler<
 	LogCategoryType,
@@ -294,10 +274,7 @@ TResult<FFutureTaskExecution, FError> TScheduler<
 	SynchronizationTraits,
 	InspectionsType>::
 	EnqueueTask(
-		JobIdType JobId,
-		TConstArrayView<JobIdReferenceType> Predecessors,
-		const ScopedLockType& L,
-		TUniquePtr<void> InPayload)
+		JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, const ScopedLockType& L, FPayload InPayload)
 {
 	check(!JobIdUtilities::IsEmpty<JobIdTraitsType>(JobId));
 	check(SynchronizationTraits::IsLocked(L));
@@ -344,8 +321,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
 	CloseStage(JobIdReferenceType StageId)
@@ -357,8 +333,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
 	CloseStage(JobIdReferenceType StageId, const ScopedLockType& L)
@@ -387,8 +362,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::GetDebugData(
 	const ScopedLockType& L) const -> const DebugDataType*
@@ -400,8 +374,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::GetDebugData(
 	const ScopedLockType& L) -> DebugDataType*
@@ -415,8 +388,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 // ReSharper disable once CppEnforceFunctionDeclarationStyle
 auto TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::FindOrAddJob(
@@ -434,8 +406,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 FJob& TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::AddJob(
 	JobIdReferenceType JobId, const ScopedLockType& L)
@@ -455,8 +426,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
 	EnqueueJobCommon(
@@ -529,8 +499,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 FFutureJobCompletion TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
 	AddSuccessor(JobIdReferenceType JobId, const ScopedLockType& L)
@@ -543,8 +512,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 FFutureJobExecution TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
 	EnqueueJobExecution(JobIdReferenceType ParentStageId, const ScopedLockType& L)
@@ -557,8 +525,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 void TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::ExecuteStage(
 	JobIdReferenceType JobId)
@@ -571,8 +538,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 void TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::ExecuteStage(
 	JobIdReferenceType JobId, const ScopedLockType& L)
@@ -596,8 +562,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 void TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::ExecuteTask(
 	JobIdReferenceType JobId)
@@ -610,8 +575,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 void TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::ExecuteTask(
 	JobIdReferenceType JobId, const ScopedLockType& L)
@@ -648,8 +612,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
 	TrackChildJobCompletion(JobIdReferenceType ParentJobId, FFutureJobCompletion FutureJobCompletion)
@@ -662,8 +625,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 TResult<void, FError> TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::
 	TrackChildJobCompletion(
@@ -685,8 +647,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 void TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::OnTaskCompleted(
 	JobIdReferenceType JobId)
@@ -699,8 +660,7 @@ template <
 	CLogCategory LogCategoryType,
 	CJobIdTraits InJobIdTraitsType = TDefaultSchedulerJobIdTraits<>,
 	CSynchronizationTrait SynchronizationTraits,
-	template <class>
-	class InspectionsType>
+	template <class> class InspectionsType>
 	requires CInspections<InspectionsType<InJobIdTraitsType>, InJobIdTraitsType>
 void TScheduler<LogCategoryType, InJobIdTraitsType, SynchronizationTraits, InspectionsType>::OnTaskCompleted(
 	JobIdReferenceType JobId, const ScopedLockType& L)

@@ -2,6 +2,7 @@
 
 #include "Zakazane/ExecutionGraph/Private/JobState.h"
 
+#include "Zakazane/ExecutionGraph/Payload.h"
 #include "Zakazane/RAII.h"
 
 namespace Zkz::ExecutionGraph::Private
@@ -317,7 +318,7 @@ TPair<TOptional<FJobState>, TResult<TArray<FScopedExecution>, FError>> CloseStag
 // SetPayload
 
 TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
-	FJobState_Incomplete_Base& JobState_Incomplete, TUniquePtr<void> InPayload)
+	FJobState_Incomplete_Base& JobState_Incomplete, FPayload InPayload)
 {
 	if (JobState_Incomplete.Payload != nullptr)
 	{
@@ -328,8 +329,7 @@ TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
 	return {NullOpt, Ok()};
 }
 
-TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
-	FJobState_Default& JobState_Default, TUniquePtr<void> InPayload)
+TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(FJobState_Default& JobState_Default, FPayload InPayload)
 {
 	FJobState_Stub JobState_Stub;
 	JobState_Stub.Payload = MoveTemp(InPayload);
@@ -338,19 +338,19 @@ TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
 }
 
 TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
-	FJobState_ExecutingStage& JobState_ExecutingStage, TUniquePtr<void> InPayload)
+	FJobState_ExecutingStage& JobState_ExecutingStage, FPayload InPayload)
 {
 	return {NullOpt, Err(FError{TInPlaceType<FJobStateIsNotAllowedAPayload>{}})};
 }
 
 TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
-	FJobState_ExecutingTask& JobState_ExecutingTask, TUniquePtr<void> InPayload)
+	FJobState_ExecutingTask& JobState_ExecutingTask, FPayload InPayload)
 {
 	return {NullOpt, Err(FError{TInPlaceType<FJobStateIsNotAllowedAPayload>{}})};
 }
 
 TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
-	FJobState_Completed& JobState_Completed, TUniquePtr<void> InPayload)
+	FJobState_Completed& JobState_Completed, FPayload InPayload)
 {
 	return {NullOpt, Err(FError{TInPlaceType<FJobStateIsNotAllowedAPayload>{}})};
 }
@@ -484,7 +484,7 @@ TPair<TOptional<FJobState>, TResult<TArray<FScopedExecution>, FError>> CloseStag
 	return Visit([](auto& V) { return JobStateImpl::CloseStage(V); }, JobState);
 }
 
-TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(FJobState& JobState, TUniquePtr<void> InPayload)
+TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(FJobState& JobState, FPayload InPayload)
 {
 	return Visit([&](auto& V) { return JobStateImpl::SetPayload(V, MoveTemp(InPayload)); }, JobState);
 }

@@ -79,7 +79,7 @@ EZkzExecutionGraphJobStateId FJob::GetJobStateId() const
 	return Visit([](const auto& JobState) { return JobState.Id; }, ActiveState);
 }
 
-TResult<void, FError> FJob::SetPayload(TUniquePtr<void> InPayload)
+TResult<void, FError> FJob::SetPayload(FPayload InPayload)
 {
 	auto [OptNewState, Result] = Private::SetPayload(ActiveState, MoveTemp(InPayload));
 	MaybeTransition(MoveTemp(OptNewState));

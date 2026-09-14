@@ -60,7 +60,7 @@ public:
 	/// Sets the payload for the job. Note that completed jobs may not have a payload,
 	/// and that if a payload is already set, this function will fail. Setting the
 	/// payload on an executing job is also prohibited.
-	TResult<void, FError> SetPayload(TUniquePtr<void> InPayload);
+	TResult<void, FError> SetPayload(FPayload InPayload);
 
 	template <class T>
 	TResult<T*, FError> GetPayload() const

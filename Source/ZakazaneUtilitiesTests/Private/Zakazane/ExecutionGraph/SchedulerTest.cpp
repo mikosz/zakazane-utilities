@@ -1,6 +1,7 @@
 #include "Zakazane/ExecutionGraph/JobIdTraits.h"
 #include "Zakazane/ExecutionGraph/Scheduler.h"
 #include "Zakazane/ExecutionGraph/SynchronizationTraits.h"
+#include "Zakazane/Test/ConstructionReportingType.h"
 #include "Zakazane/Test/Test.h"
 
 namespace Zkz::ExecutionGraph::Test
@@ -30,9 +31,10 @@ TOptional<FFutureTaskExecution> TestEnqueueTask(
 	const FString& Prefix,
 	SchedulerType& Scheduler,
 	typename SchedulerType::JobIdType JobId,
-	TConstArrayView<typename SchedulerType::JobIdReferenceType> Predecessors)
+	TConstArrayView<typename SchedulerType::JobIdReferenceType> Predecessors,
+	FPayload Payload = nullptr)
 {
-	auto Result = Scheduler.EnqueueTask(MoveTemp(JobId), MoveTemp(Predecessors));
+	auto Result = Scheduler.EnqueueTask(MoveTemp(JobId), MoveTemp(Predecessors), MoveTemp(Payload));
 	if (Test.TestTrue(Prefix + "Enqueue task succeeds", Result.HasValue()))
 	{
 		return MoveTemp(Result).GetValue();
@@ -673,6 +675,37 @@ void CircularDependency(FAutomationTestBase& Test, const FString& Prefix)
 		TEXT("Circular dependency detected: {Task3 => Stage0 => Task1 => Stage2 => Task3}"));
 }
 
+template <class SynchronizationPrimitiveType>
+void PayloadDestruction(FAutomationTestBase& Test, const FString& Prefix)
+{
+	using SchedulerType =
+		TScheduler<decltype(LogExecutionGraphTest), TDefaultSchedulerJobIdTraits<>, SynchronizationPrimitiveType>;
+
+	SchedulerType Scheduler{LogExecutionGraphTest};
+
+	const auto TaskId = Scheduler.MakeJobIdFromString(TEXTVIEW("Task"));
+
+	auto ConstructionReport = Zkz::Test::FConstructionReport{};
+
+	{
+		auto Payload = MakePayload<Zkz::Test::FConstructionReportingType>(ConstructionReport);
+		const auto* const PayloadPtr = Payload.Get();
+		auto OptFutureTaskExec = TestEnqueueTask(Test, Prefix, Scheduler, TaskId, {}, MoveTemp(Payload));
+
+		ZKZ_RETURN_IF(!OptFutureTaskExec.IsSet());
+
+		IfNotCanceled(
+			MoveTemp(*OptFutureTaskExec),
+			[&Test, PayloadPtr](FTaskArgs TaskArgs)
+			{
+				Test.TestTrue("Payload address matches", TaskArgs.Payload == PayloadPtr);
+				TaskArgs.CompletionPromise.EmplaceValue();
+			});
+	}
+
+	Test.TestEqual("Payload destructed", ConstructionReport.DestructorCalls, 1);
+}
+
 // #TODO #Scheduler: I wrote this test because I figured it should be possible to define stubbed jobs even if the
 // stage is closed. It doesn't work at the moment, because the stage states don't know about stubs. For that to work,
 // the tracked job completion should be added to the stage for stubbed tasks and then retrieved when the task is created.
@@ -830,6 +863,18 @@ ZKZ_ADD_TEST(CircularDependency_ThreadUnsafe)
 {
 	using namespace SchedulerTestPrivate;
 	CircularDependency<FThreadUnsafe>(*this, TEXT("Thread unsafe: "));
+}
+
+ZKZ_ADD_TEST(PayloadDestruction_ThreadSafe)
+{
+	using namespace SchedulerTestPrivate;
+	PayloadDestruction<FThreadSafe>(*this, TEXT("Thread safe: "));
+}
+
+ZKZ_ADD_TEST(PayloadDestruction_ThreadUnsafe)
+{
+	using namespace SchedulerTestPrivate;
+	PayloadDestruction<FThreadUnsafe>(*this, TEXT("Thread safe: "));
 }
 
 ZKZ_END_AUTOMATION_TEST(FSchedulerTest)

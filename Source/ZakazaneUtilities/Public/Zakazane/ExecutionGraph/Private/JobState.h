@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 #include "Zakazane/ExecutionGraph/Error.h"
+#include "Zakazane/ExecutionGraph/Payload.h"
 #include "Zakazane/ExecutionGraph/ResultTypes.h"
 #include "Zakazane/ExecutionGraph/ZkzExecutionGraphJobStateId.h"
 #include "Zakazane/RAII.h"
@@ -59,10 +60,8 @@ struct ZAKAZANEUTILITIES_API FJobState_Incomplete_Base : FJobState_Base
 	/// is closed.
 	FJobCompletionPromises JobCompletionPromises;
 
-	// #TODO #ExecutionGraph: Consider making payloads TUniquePtr<std::any>
-
 	/// Any additional user data associated with the job.
-	TUniquePtr<void> Payload;
+	FPayload Payload;
 
 	FJobState_Incomplete_Base() = default;
 	FJobState_Incomplete_Base(FJobState_Incomplete_Base&& Other) = default;
@@ -230,7 +229,7 @@ ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, TResult<TArray<FScopedExecutio
 	FJobState& JobState);
 
 ZAKAZANEUTILITIES_API TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(
-	FJobState& JobState, TUniquePtr<void> InPayload);
+	FJobState& JobState, FPayload InPayload);
 
 ZAKAZANEUTILITIES_API TResult<void*, FError> GetPayload(const FJobState& JobState);
 

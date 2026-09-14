@@ -7,6 +7,7 @@
 #include "Inspections.h"
 #include "Job.h"
 #include "JobIdTraits.h"
+#include "Payload.h"
 #include "Scheduler.h"
 #include "SynchronizationTraits.h"
 #include "Templates/UniquePtr.h"
@@ -139,12 +140,12 @@ public:
 	/// CloseStage needs to be called at some point, allowing the stage to become completed when all running tasks
 	/// finish and enabling to trigger dependent stages
 	TResult<void, FError> EnqueueStage(
-		JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, TUniquePtr<void> InPayload = nullptr);
+		JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, FPayload InPayload = nullptr);
 	TResult<void, FError> EnqueueStage(
 		JobIdType JobId,
 		TConstArrayView<JobIdReferenceType> Predecessors,
 		const ScopedLockType& L,
-		TUniquePtr<void> InPayload = nullptr);
+		FPayload InPayload = nullptr);
 
 	/// Defines a task and its dependencies on other stages / tasks. The stage doesn't have to be defined at this point;
 	/// the only requirement is that CloseStage has not been called for it.
@@ -169,12 +170,12 @@ public:
 	///		}
 	/// </pre>
 	TResult<FFutureTaskExecution, FError> EnqueueTask(
-		JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, TUniquePtr<void> InPayload = nullptr);
+		JobIdType JobId, TConstArrayView<JobIdReferenceType> Predecessors, FPayload InPayload = nullptr);
 	TResult<FFutureTaskExecution, FError> EnqueueTask(
 		JobIdType JobId,
 		TConstArrayView<JobIdReferenceType> Predecessors,
 		const ScopedLockType& L,
-		TUniquePtr<void> InPayload = nullptr);
+		FPayload InPayload = nullptr);
 
 	/// Closes a stage, preventing any further tasks from being added to it.
 	/// The current implementation prohibits enqueueing jobs even if they have been stubbed prior to closing.
