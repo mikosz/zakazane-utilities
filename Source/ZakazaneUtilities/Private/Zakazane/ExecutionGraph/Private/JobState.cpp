@@ -7,7 +7,9 @@
 
 namespace Zkz::ExecutionGraph::Private
 {
-namespace JobStateImpl
+namespace JobStatePrivate
+{
+namespace
 {
 
 FScopedExecution FulfillAtCallSite(TScopedPromise<void> Promise)
@@ -367,7 +369,8 @@ TResult<void*, FError> GetPayload(const FJobState_Incomplete_Base& JobState_Inco
 	return Ok(JobState_Incomplete.Payload.Get());
 }
 
-}  // namespace JobStateImpl
+}
+}  // namespace JobStatePrivate
 
 FJobState_IncompleteStage_Base::FJobState_IncompleteStage_Base(FJobState_Incomplete_Base&& Other)
 	: FJobState_Incomplete_Base{MoveTemp(Other)}
@@ -431,13 +434,13 @@ FJobState_ExecutingTask::FJobState_ExecutingTask(FJobState_Incomplete_Base&& Oth
 
 TPair<TOptional<FJobState>, FFutureJobCompletion> AddSuccessor(FJobState& JobState)
 {
-	return Visit([](auto& V) { return JobStateImpl::AddSuccessor(V); }, JobState);
+	return Visit([](auto& V) { return JobStatePrivate::AddSuccessor(V); }, JobState);
 }
 
 TOptional<FJobState> DefineStage(FJobState& JobState, FJobCompletionPromise StageCompletionPromise)
 {
 	return Visit(
-		[&](auto& V) mutable { return JobStateImpl::DefineStage(V, MoveTemp(StageCompletionPromise)); }, JobState);
+		[&](auto& V) mutable { return JobStatePrivate::DefineStage(V, MoveTemp(StageCompletionPromise)); }, JobState);
 }
 
 TOptional<FJobState> DefineTask(
@@ -445,53 +448,53 @@ TOptional<FJobState> DefineTask(
 {
 	return Visit(
 		[&](auto& V) mutable
-		{ return JobStateImpl::DefineTask(V, MoveTemp(TaskExecutionPromise), MoveTemp(TaskCompletionPromise)); },
+		{ return JobStatePrivate::DefineTask(V, MoveTemp(TaskExecutionPromise), MoveTemp(TaskCompletionPromise)); },
 		JobState);
 }
 
 TPair<TOptional<FJobState>, TArray<FScopedExecution>> ExecuteStage(FJobState& JobState)
 {
-	return Visit([&](auto& V) mutable { return JobStateImpl::ExecuteStage(V); }, JobState);
+	return Visit([&](auto& V) mutable { return JobStatePrivate::ExecuteStage(V); }, JobState);
 }
 
 TPair<TOptional<FJobState>, FTaskExecutionPromise> ExecuteTask(FJobState& JobState)
 {
-	return Visit([&](auto& V) mutable { return JobStateImpl::ExecuteTask(V); }, JobState);
+	return Visit([&](auto& V) mutable { return JobStatePrivate::ExecuteTask(V); }, JobState);
 }
 
 TPair<TOptional<FJobState>, TArray<FScopedExecution>> OnTaskCompleted(FJobState& JobState)
 {
-	return Visit([&](auto& V) mutable { return JobStateImpl::OnTaskCompleted(V); }, JobState);
+	return Visit([&](auto& V) mutable { return JobStatePrivate::OnTaskCompleted(V); }, JobState);
 }
 
 TPair<TOptional<FJobState>, TResult<void, FError>> OnChildJobTracked(FJobState& JobState)
 {
-	return Visit([&](auto& V) mutable { return JobStateImpl::OnChildJobTracked(V); }, JobState);
+	return Visit([&](auto& V) mutable { return JobStatePrivate::OnChildJobTracked(V); }, JobState);
 }
 
 TPair<TOptional<FJobState>, TArray<FScopedExecution>> OnChildJobCompleted(FJobState& JobState)
 {
-	return Visit([&](auto& V) mutable { return JobStateImpl::OnChildJobCompleted(V); }, JobState);
+	return Visit([&](auto& V) mutable { return JobStatePrivate::OnChildJobCompleted(V); }, JobState);
 }
 
 TPair<TOptional<FJobState>, FFutureJobExecution> EnqueueJobExecution(FJobState& JobState)
 {
-	return Visit([&](auto& V) mutable { return JobStateImpl::EnqueueJobExecution(V); }, JobState);
+	return Visit([&](auto& V) mutable { return JobStatePrivate::EnqueueJobExecution(V); }, JobState);
 }
 
 TPair<TOptional<FJobState>, TResult<TArray<FScopedExecution>, FError>> CloseStage(FJobState& JobState)
 {
-	return Visit([](auto& V) { return JobStateImpl::CloseStage(V); }, JobState);
+	return Visit([](auto& V) { return JobStatePrivate::CloseStage(V); }, JobState);
 }
 
 TPair<TOptional<FJobState>, TResult<void, FError>> SetPayload(FJobState& JobState, FPayload InPayload)
 {
-	return Visit([&](auto& V) { return JobStateImpl::SetPayload(V, MoveTemp(InPayload)); }, JobState);
+	return Visit([&](auto& V) { return JobStatePrivate::SetPayload(V, MoveTemp(InPayload)); }, JobState);
 }
 
 TResult<void*, FError> GetPayload(const FJobState& JobState)
 {
-	return Visit([&](auto& V) { return JobStateImpl::GetPayload(V); }, JobState);
+	return Visit([&](auto& V) { return JobStatePrivate::GetPayload(V); }, JobState);
 }
 
 }  // namespace Zkz::ExecutionGraph::Private

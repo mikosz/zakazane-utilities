@@ -31,7 +31,7 @@ using EJobStateId = EZkzExecutionGraphJobStateId;
 
 /// NOTE:
 /// State structs may contain promises, but they don't contain futures. This is because, for thread safety (and
-/// simplicity), states may never initiate state transitions. These are always performed by the scheduler. Therefore
+/// simplicity), states may never initiate state transitions. These are always performed by the scheduler. Therefore,
 /// futures are only used on the scheduler side, where they are retrieved and acted upon.
 
 struct FJobState_Base
@@ -133,7 +133,7 @@ struct ZAKAZANEUTILITIES_API FJobState_DefinedStage final : FJobState_PendingSta
 {
 	static constexpr EJobStateId Id = EJobStateId::DefinedStage;
 
-	FJobState_DefinedStage(FJobCompletionPromise StageCompletionPromise);
+	explicit FJobState_DefinedStage(FJobCompletionPromise StageCompletionPromise);
 	FJobState_DefinedStage(FJobState_Incomplete_Base&& Other, FJobCompletionPromise StageCompletionPromise);
 	FJobState_DefinedStage(FJobState_PendingStage_Base&& Other, FJobCompletionPromise StageCompletionPromise);
 };

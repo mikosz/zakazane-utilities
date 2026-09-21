@@ -40,10 +40,10 @@ public class ZakazaneUtilities : ModuleRules
 				"MessageLog"
 			});
 
-		AddUseEngineVersionDef(5, 5);
+		AddUseEngineVersionDef(5, 8);
 
 		// By default, optional inspections are performed on non-shipping and non-test builds.
-		// If you want to override this behaviour use FORCE_XYZ_INSPECTIONS set to 0 (to force disable)
+		// If you want to override this behavior use FORCE_XYZ_INSPECTIONS set to 0 (to force disable)
 		// or 1 (to force enable).
 		// PublicDefinitions.Add("FORCE_EXECUTION_GRAPH_INSPECTIONS=0");
 		// PublicDefinitions.Add("FORCE_BUDGETING_INSPECTIONS=0");
