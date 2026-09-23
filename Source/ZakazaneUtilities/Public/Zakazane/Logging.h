@@ -232,6 +232,8 @@ private:
 	TNonNullPtr<const LogCategoryType> LogCategory;
 };
 
+FString ZAKAZANEUTILITIES_API GetNetworkedActorName(const AActor& Actor);
+
 // -- template implementations
 
 template <CLogCategory InLogCategoryType>

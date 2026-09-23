@@ -29,16 +29,16 @@ constexpr bool THasRemoveDelegateHandleMemberFunctionV = THasRemoveDelegateHandl
 
 }  // namespace Private
 
-// RAII type for delegate handles. Automatically unbinds the handle from the delegate at destruction.
+/// RAII type for delegate handles. Automatically unbinds the handle from the delegate at destruction.
 template <class DelegateT>
-class TScopedDelegateHandle
+class [[nodiscard]] TScopedDelegateHandle
 {
 public:
 	using DelegateType = DelegateT;
 
 	TScopedDelegateHandle() = default;
 
-	// Takes ownership of the provided delegate handle
+	/// Takes ownership of the provided delegate handle
 	TScopedDelegateHandle(DelegateType& InDelegate, FDelegateHandle&& InDelegateHandle)
 		: Delegate{&InDelegate}, DelegateHandle{InDelegateHandle}
 	{
@@ -57,14 +57,14 @@ public:
 		Reset();
 	}
 
-	// Copy-and-swap idiom makes any assignment work correctly
+	/// Copy-and-swap idiom makes any assignment work correctly
 	TScopedDelegateHandle& operator=(TScopedDelegateHandle Other)
 	{
 		Swap(Other);
 		return *this;
 	}
 
-	// Releases ownership of the held delegate handle
+	/// Releases ownership of the held delegate handle
 	FDelegateHandle Release()
 	{
 		FDelegateHandle Copy = DelegateHandle;
@@ -73,7 +73,7 @@ public:
 		return Copy;
 	}
 
-	// Clears this handle and unbinds the held handle from the delegate
+	/// Clears this handle and unbinds the held handle from the delegate
 	void Reset()
 	{
 		if (Delegate && DelegateHandle.IsValid())

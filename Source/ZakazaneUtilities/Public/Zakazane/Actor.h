@@ -6,6 +6,7 @@
 
 namespace Zkz
 {
+
 #if WITH_EDITOR
 /// Iterates over all World Partition actor descriptors, loading their corresponding OFPA assets into memory to execute the callback.
 /// @note Bypasses standard world initialization.
@@ -19,4 +20,5 @@ ZAKAZANEUTILITIES_API void ForEachActorWithLoadingInWorld(
 	bool bInRecursive = false,
 	bool bInKeepReferences = false);
 #endif
+
 }  // namespace Zkz

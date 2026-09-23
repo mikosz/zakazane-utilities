@@ -70,14 +70,14 @@ OutContainerType TransformTo(
 }
 
 /// Does what Algo::Transform does, but returns a new array instead of taking an output parameter.
-template <class InContainerType, class FunctionType, class... AdditionalArgTypes>
+template <class AllocatorType = FDefaultAllocator, class InContainerType, class FunctionType, class... AdditionalArgTypes>
 	requires(CInvokable<FunctionType, const typename InContainerType::ElementType&, AdditionalArgTypes...>)
 auto Transform(const InContainerType& InContainer, FunctionType&& F, AdditionalArgTypes&&... AdditionalArgs)
 {
 	using TransformedType = decltype(::Invoke(
 		F, std::declval<typename InContainerType::ElementType>(), std::declval<AdditionalArgTypes>()...));
 
-	return TransformTo<TArray<TransformedType>>(
+	return TransformTo<TArray<TransformedType, AllocatorType>>(
 		InContainer, Forward<FunctionType>(F), Forward<AdditionalArgTypes>(AdditionalArgs)...);
 }
 
@@ -113,7 +113,12 @@ OutContainerType TransformToIf(
 }
 
 /// Does what Algo::TransformIf does, but returns a new container instead of taking an output parameter.
-template <class InContainerType, class PredicateType, class FunctionType, class... AdditionalArgTypes>
+template <
+	class AllocatorType = FDefaultAllocator,
+	class InContainerType,
+	class PredicateType,
+	class FunctionType,
+	class... AdditionalArgTypes>
 	requires(CInvokable<FunctionType, const typename InContainerType::ElementType&, AdditionalArgTypes...>)
 auto TransformIf(
 	const InContainerType& InContainer, PredicateType&& P, FunctionType&& F, AdditionalArgTypes&&... AdditionalArgs)
@@ -121,7 +126,7 @@ auto TransformIf(
 	using TransformedType = decltype(::Invoke(
 		F, std::declval<typename InContainerType::ElementType>(), std::declval<AdditionalArgTypes>()...));
 
-	return TransformToIf<TArray<TransformedType>>(
+	return TransformToIf<TArray<TransformedType, AllocatorType>>(
 		InContainer,
 		Forward<PredicateType>(P),
 		Forward<FunctionType>(F),

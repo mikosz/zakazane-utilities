@@ -383,6 +383,37 @@ void LogUserError(
 	LogSubsystem->LogUserError(LogCategory, Severity, MessageStr, ContextObjects, bTryPointToSourceObject);
 }
 
+FString GetNetworkedActorName(const AActor& Actor)
+{
+	auto Builder = TStringBuilder<128>{};
+
+	if (Actor.GetNetMode() < NM_Client)
+	{
+		Builder.Append(TEXT("Server."));
+	}
+	else
+	{
+		Builder.Appendf(TEXT("Client_%d."), UE::GetPlayInEditorID());
+
+		if (const auto NetRole = Actor.GetLocalRole(); NetRole == ROLE_AutonomousProxy)
+		{
+			Builder.Append(TEXT("Autonomous."));
+		}
+		else if (NetRole == ROLE_SimulatedProxy)
+		{
+			Builder.Append(TEXT("Simulated."));
+		}
+		else if (NetRole == ROLE_Authority)
+		{
+			Builder.Append(TEXT("Authority."));
+		}
+	}
+
+	Builder.Append(Actor.GetActorNameOrLabel());
+
+	return Builder.ToString();
+}
+
 #if NO_LOGGING
 void LogUserError(
 	const FNoLoggingCategory& LogCategory,
