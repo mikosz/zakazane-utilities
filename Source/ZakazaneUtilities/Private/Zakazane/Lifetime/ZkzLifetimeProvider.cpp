@@ -17,7 +17,7 @@ FProviderData::FProviderData(FString InLogName, TConstArrayView<FName> InBuiltin
 void FProviderData::NotifyLifetimeStarted(FName LifetimeId)
 {
 	ZKZ_RETURN_IF_ENSUREALWAYS(!IsSupportedLifetime(LifetimeId));
-	ZKZ_RETURN_IF_ENSUREALWAYS(IsLifetimeActive(LifetimeId));
+	ZKZ_RETURN_IF(IsLifetimeActive(LifetimeId));
 
 	ActiveLifetimes.Emplace(LifetimeId);
 
@@ -58,6 +58,7 @@ void FProviderData::NotifyLifetimeStarted(FName LifetimeId)
 void FProviderData::NotifyLifetimeEnded(FName LifetimeId)
 {
 	ZKZ_RETURN_IF_ENSUREALWAYS(!IsSupportedLifetime(LifetimeId));
+	ZKZ_RETURN_IF(!IsLifetimeActive(LifetimeId));
 
 	const auto NumRemoved = ActiveLifetimes.RemoveSingleSwap(LifetimeId);
 
